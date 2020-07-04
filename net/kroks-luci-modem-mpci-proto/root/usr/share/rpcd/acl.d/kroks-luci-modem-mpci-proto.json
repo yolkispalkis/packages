@@ -1,0 +1,10 @@
+{
+	"kroks-luci-modem-mpci-proto": {
+		"description": "Grant access to kroks-dev-modem",
+		"read": {
+			"ubus": {
+				"kroks.dev.modem": [ "object" ]
+			}
+		}
+	}
+}

@@ -1,0 +1,50 @@
+<% 
+    luci.template.render("header");
+    
+    modemObject = modemObject or {};
+
+    modemObject.config = modemObject.config or {};
+
+    modemObject.simcard = modemObject.simcard or {};
+
+    modemObject.storage = modemObject.storage or {};
+    modemObject.storage.generic = modemObject.storage.generic or {};
+
+    modemObject.condition = modemObject.condition or {};
+    modemObject.condition.simcard = modemObject.condition.simcard or "mpdemXsimcardY";
+
+    modemObject.simcard[modemObject.condition.simcard] = modemObject.simcard[modemObject.condition.simcard] or {};
+    modemObject.simcard[modemObject.condition.simcard].config = modemObject.simcard[modemObject.condition.simcard].config or {};
+    modemObject.simcard[modemObject.condition.simcard].storage = modemObject.simcard[modemObject.condition.simcard].storage or {};
+    modemObject.simcard[modemObject.condition.simcard].storage.properties = modemObject.simcard[modemObject.condition.simcard].storage.properties or {};
+%>
+
+<script type="text/javascript" src="<%=resource%>/cbi.js"></script>
+<script type="text/javascript">//<![CDATA[
+
+    XHR.poll(5, '<%=luci.dispatcher.build_url("admin", "network", "modem", tostring(modemName), "configuration")%>',{ json: "true" },
+    function(x, data)
+    {
+        switch (x.status){
+            case 404:
+                window.location.replace('<%=luci.dispatcher.build_url("admin", "network", "modem", tostring(modemName))%>');
+                break;
+        };
+    });
+</script>
+
+<form method='post'>
+    <input type='hidden' name="post" value="post">
+
+    <%
+        luci.template.render("modem/configuration/radio", {modemName = modemName, modemObject = modemObject})
+        luci.template.render("modem/configuration/simcard", {modemName = modemName, modemObject = modemObject})
+    %>
+
+    <div class="cbi-page-actions">
+        <input class="cbi-button cbi-button-apply" value="<%:Save & Apply%>" size="0" type="submit">
+        <input class="cbi-button cbi-button-reset" value="<%:Revert%>" size="0" type="reset">
+    </div>
+</form>
+
+<% luci.template.render("footer") %>

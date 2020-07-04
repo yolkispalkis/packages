@@ -1,0 +1,75 @@
+#!/bin/sh
+
+CFG=/etc/board.json
+
+. /usr/share/libubox/jshn.sh
+
+OUT_DIR="$1"
+[ -n "$OUT_DIR" ] || OUT_DIR="/etc/config"
+
+scan_interfaces() {
+	# filter non modem interfaces
+	case "$1" in
+		modem[0-9]) : ;;
+		*) return ;;
+	esac
+	json_select network
+		json_select "$1"
+			json_get_vars ifname
+	
+			if [ -n "$ifname" ]; then
+				if json_is_a simcard array; then
+					local simcard sim active_sim
+
+					json_get_keys simcard simcard
+					json_select simcard
+
+					for sim in $simcard; do
+						local index type enabled name
+
+						json_select "$sim"
+							json_get_vars index type enabled
+						json_select ..
+
+						name="${1}${type}${index}"
+						[ -z "$active_sim" ] && [ "$enabled" -eq 1 ] && active_sim="$name"
+
+						uci -q batch <<-EOF
+							set kroks-dev-modem.${name}='simcard'
+							set kroks-dev-modem.${name}.enabled='$enabled'
+							set kroks-dev-modem.${name}.modem='$1'
+							set kroks-dev-modem.${name}.auth='both'
+						EOF
+						[ -d "/sys/class/gpio/${name}" ] && \
+							uci -q set kroks-dev-modem.${name}.powerGpio="/sys/class/gpio/${name}/"
+					done
+
+					# setup sim anyway
+					[ -z "$active_sim" ] && active_sim="$name"
+
+					uci -q batch <<-EOF
+						set kroks-dev-modem.$1='modem'
+						set kroks-dev-modem.$1.device='$ifname'
+						set kroks-dev-modem.$1.simcard='$active_sim'
+					EOF
+					[ -d "/sys/class/gpio/${1}power" ] && \
+						uci -q set kroks-dev-modem.$1.powerGpio="/sys/class/gpio/${1}power/"
+
+					json_select ..
+				fi
+			fi
+		json_select ..	
+	json_select ..
+}
+
+generate_kroks_dev_modem() {
+	json_init
+	json_load "$(cat ${CFG})"
+
+	json_get_keys keys network
+	for key in $keys; do scan_interfaces $key; done
+}
+
+> $OUT_DIR/kroks-dev-modem
+generate_kroks_dev_modem
+uci -c $OUT_DIR commit kroks-dev-modem

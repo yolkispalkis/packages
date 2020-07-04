@@ -1,0 +1,228 @@
+<%
+    luci.template.render("header")
+%>
+
+<script type="text/javascript" src="<%=resource%>/cbi.js"></script>
+<script type="text/javascript">
+
+function ClassSetAttr(ClassName, AttrName, Value){
+    var list = document.getElementsByClassName(ClassName);
+    for(var i = 0; i < list.length; i++){
+        list[i][AttrName] = Value;
+    }
+}
+
+XHR.poll(3, '<%=luci.dispatcher.build_url("admin", "network", "modem", tostring(modemName), "ussd")%>', { method: "status" }, function(x, data) {
+    switch (x.status){
+        case 200:
+            if (data) {
+                if (data.result){
+                    document.getElementById("HTML_USSD_MainDiv").hidden = false;
+                    document.getElementById("HTML_USSD_ErrorDiv").hidden = true;
+
+                    document.getElementById("loading").hidden = true
+                    ClassSetAttr("HTML_Class_USSD_Controller", "disabled", null);
+
+                    switch(data.result.status){
+                        case "active":
+                            ClassSetAttr("HTML_Class_USSD_Controller", "disabled", "disabled");
+
+                            document.getElementById("loading").hidden = false;
+                            break;
+                        case "idle":
+                            ClassSetAttr("HTML_Class_USSD_Initiate", "hidden", null);
+
+                            ClassSetAttr("HTML_Class_USSD_Respond", "hidden", "hidden");
+                            break;
+
+                        case "user-response":
+                            ClassSetAttr("HTML_Class_USSD_Initiate", "hidden", "hidden");
+                            ClassSetAttr("HTML_Class_USSD_Respond", "hidden", null);
+                            if (data.result["network-request"] && data.result["network-request"] != "--") {
+                                JS_Var_USSD_Answer = data.result["network-request"];
+                            }
+                            break;
+                        default:
+                            console.log("unknown status:\t" + data.result.status);
+                            break;
+                    }
+                }
+
+                if (data.error){
+                    document.getElementById("HTML_USSD_MainDiv").hidden = true;
+                    document.getElementById("HTML_USSD_ErrorDiv").hidden = false;
+                    document.getElementById("HTML_USSD_ErrorDiv: message").innerText = data.error;
+                }
+            }
+            break;
+        case 404:
+            window.location.replace('<%=luci.dispatcher.build_url("admin", "network", "modem", tostring(modemName))%>');
+            break;
+    }
+
+
+    if (JS_Var_USSD_Answer == '') {
+        ClassSetAttr("HTML_Class_USSD_Answer", "hidden", "hidden");
+    }else{
+        ClassSetAttr("HTML_Class_USSD_Answer", "hidden", null);
+    }
+
+    document.getElementById("HTML_Elem_USSD_Answer_Viewer").value = JS_Var_USSD_Answer;
+});
+
+
+var JS_Var_USSD_Answer = ''
+
+function JS_Call_USSD_Initiate(){
+    document.getElementById("loading").hidden = false;
+    ClassSetAttr("HTML_Class_USSD_Controller", "disabled", "disabled");
+    ClassSetAttr("HTML_Class_USSD_Answer", "hidden", "hidden");
+    JS_Var_USSD_Answer = "";
+
+    var command = document.getElementById("HTML_Elem_USSD_Initiate_Command").value;
+
+    XHR.get('<%=luci.dispatcher.build_url("admin", "network", "modem", tostring(modemName), "ussd")%>', { method: "initiate", params: command }, function(x, data){
+        switch (x.status){
+        case 200:
+            if (data) {
+                if (data.result){
+                    document.getElementById("HTML_USSD_ErrorDiv").hidden = true;
+                    JS_Var_USSD_Answer = data.result;
+                }
+
+                if (data.error){
+                    document.getElementById("HTML_USSD_ErrorDiv").hidden = false;
+                    document.getElementById("HTML_USSD_ErrorDiv: message").innerText = data.error;
+                }
+            }
+            break;
+        case 404:
+            window.location.replace('<%=luci.dispatcher.build_url("admin", "network", "modem", tostring(modemName))%>');
+            break;
+        }
+    });
+
+    localStorage.setItem('HTML_Elem_USSD_Initiate_Command', command);
+}
+
+function JS_Call_USSD_Respond(){
+    document.getElementById("loading").hidden = false;
+    ClassSetAttr("HTML_Class_USSD_Controller", "disabled", "disabled");
+    ClassSetAttr("HTML_Class_USSD_Answer", "hidden", "hidden");
+    JS_Var_USSD_Answer = "";
+
+    var response = document.getElementById("HTML_Elem_USSD_Respond_Response").value;
+
+    XHR.get('<%=luci.dispatcher.build_url("admin", "network", "modem", tostring(modemName), "ussd")%>', { method: "respond", params: response }, function(x, data) {
+        switch (x.status){
+        case 200:
+            if (data) {
+                if (data.result){
+                    document.getElementById("HTML_USSD_ErrorDiv").hidden = true;
+                    JS_Var_USSD_Answer = data.result;
+                }
+
+                if (data.error){
+                    document.getElementById("HTML_USSD_ErrorDiv").hidden = false;
+                    document.getElementById("HTML_USSD_ErrorDiv: message").innerText = data.error;
+                }
+            }
+            break;
+        case 404:
+            window.location.replace('<%=luci.dispatcher.build_url("admin", "network", "modem", tostring(modemName))%>');
+            break;
+        }
+    });
+}
+
+function JS_Call_USSD_Cancel(){
+    document.getElementById("loading").hidden = false;
+    ClassSetAttr("HTML_Class_USSD_Controller", "disabled", "disabled");
+
+    XHR.get('<%=luci.dispatcher.build_url("admin", "network", "modem", tostring(modemName), "ussd")%>', { method: "cancel" }, function(x, data) {
+        switch (x.status){
+        case 200:
+            if (data) {
+                if (data.result){
+                    document.getElementById("HTML_USSD_ErrorDiv").hidden = true;
+                }
+
+                if (data.error){
+                    document.getElementById("HTML_USSD_ErrorDiv").hidden = false;
+                    document.getElementById("HTML_USSD_ErrorDiv: message").innerText = data.error;
+                }
+            }
+            break;
+        case 404:
+            window.location.replace('<%=luci.dispatcher.build_url("admin", "network", "modem", tostring(modemName))%>');
+            break;
+        }
+    });
+}
+
+</script>
+
+<div class="HTML_Class_USSD cbi-section" id="HTML_USSD_MainDiv">
+    <h3><%:Base USSD%>:</h3>
+
+    <div class="HTML_Class_USSD_Initiate cbi-section" id="Form_USSD_Initiate">
+        <table>
+            <tr>
+                <td width="350px">
+                    <%:Initiate USSD%>
+                </td>
+                <td>
+                    <input class="HTML_Class_USSD_Controller" style="width: 350px;" type="text" pattern="^[*#+0-9]+$" placeholder="*102#" id="HTML_Elem_USSD_Initiate_Command" onkeydown="if (event.keyCode == 13) JS_Call_USSD_Initiate()">
+                    <button class="HTML_Class_USSD_Controller cbi-button cbi-button-apply important" onClick="JS_Call_USSD_Initiate()"><%:Initiate%></button>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="HTML_Class_USSD_Answer cbi-section" id="Form_USSD_Answer" hidden="hidden">
+            <table>
+                <tr>
+                    <td width="350px">
+                        <%:USSD Answer%>
+                    </td>
+                    <td>
+                        <textarea class="HTML_Class_USSD_Controller" style="width: 100%; height: 250px; resize: none;" readonly="true" id="HTML_Elem_USSD_Answer_Viewer" placeholder="USSD answer"></textarea>
+                    </td>
+                </tr>
+            </table>
+    </div>
+
+    <div class="HTML_Class_USSD_Respond cbi-section" id="Form_USSD_Respond" hidden="hidden">
+        <table>
+            <tr>
+                <td width="350px">
+                    <%:USSD Respond%>
+                </td>
+                <td>
+                    <input class="HTML_Class_USSD_Controller" style="width: 350px;" type="text" pattern="^[*#+0-9]+$" placeholder="0" id="HTML_Elem_USSD_Respond_Response" onkeydown="if (event.keyCode == 13) JS_Call_USSD_Respond()">
+                    <button class="HTML_Class_USSD_Controller cbi-button cbi-button-apply important" onClick="JS_Call_USSD_Respond()"><%:Respond%></button>
+                    <button class="HTML_Class_USSD_Controller cbi-button cbi-button-apply important" onClick="JS_Call_USSD_Cancel()"><%:Cancel%></button>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="cbi-page-actions" id="loading" hidden="hidden">
+        <img src="/luci-static/resources/icons/loading.gif" alt="Loading..." style="vertical-align:middle"/>
+        <button class="cbi-button cbi-button-negative important" onClick="JS_Call_USSD_Cancel()"><%:Cancel%></button>
+    </div>
+</div>
+
+<div class="cbi-section" id="HTML_USSD_ErrorDiv" hidden="hidden">
+    <h3><%:Error%>:</h3>
+
+    <div id="HTML_USSD_ErrorDiv: message"></div>
+<div>
+
+<script>
+    document.getElementById("HTML_Elem_USSD_Initiate_Command").value = localStorage.getItem('HTML_Elem_USSD_Initiate_Command');
+</script>
+
+<%
+    luci.template.render("footer")
+%>

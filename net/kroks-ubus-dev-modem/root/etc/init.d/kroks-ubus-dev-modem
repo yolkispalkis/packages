@@ -1,0 +1,39 @@
+#!/bin/sh /etc/rc.common
+
+START=99
+USE_PROCD=1
+
+DEVELOPER_COMPANY="kroks"
+SERVICE_NAME="dev-modem"
+UBUS_SERVICE_NAME="${DEVELOPER_COMPANY}.${SERVICE_NAME//-/.}"
+
+LUA_INTERPRETER="/usr/bin/luajit"
+LUA_SERVICE_FOLDER="/usr/lib/lua/${DEVELOPER_COMPANY}/ubus/"
+LUA_SERVICE_FILE="${LUA_SERVICE_FOLDER}${SERVICE_NAME}.lua"
+
+log_message() {
+	logger "$1 ubus service: ${UBUS_SERVICE_NAME}"
+}
+
+start_service() {
+	log_message start
+
+	procd_open_instance
+	procd_set_param command "${LUA_INTERPRETER}"
+	procd_append_param command "${LUA_SERVICE_FILE}"
+	procd_set_param respawn
+	# forward stderr to logd
+	procd_set_param stderr 1
+	# forward stdout to logd
+	procd_set_param stdout 1
+	procd_close_instance
+}
+
+stop_service() {
+	log_message stop
+}
+
+reload_service() {
+	log_message reload
+	ubus call "${UBUS_SERVICE_NAME}" reload
+}

@@ -1,0 +1,693 @@
+<%
+    luci.template.render("header")
+%>
+
+<style>
+    .Panel {
+        /*background-color: #EEE;*/
+        /*outline: 1px solid #000;*/
+        border: 1px solid rgba(0, 0, 0, .15);
+    }
+
+    #Chat {
+        width: 100%;
+        height:  500px;
+
+        margin: 1rem 0 0 0;
+        /*padding: 10px;*/
+
+        border: 0;
+        font-weight: normal;
+        font-style: normal;
+        line-height: 1;
+        font-family: inherit;
+        min-width: inherit;
+        border-radius: 0;
+        background-color: #FFF;
+        box-shadow: 0 2px 2px 0 rgba(0, 0, 0, .16), 0 0 2px 0 rgba(0, 0, 0, .12);
+        -webkit-overflow-scrolling: touch;
+
+        border-collapse: separate;
+        border-spacing: 10px;
+
+    }
+
+    #ChatList {
+        width: 250px;
+        height:  500px;
+    }
+
+    #ChatListBody {
+
+        width: 250px;
+        height: calc(100% - 40px - 10px);
+
+        overflow-x: hidden;
+        overflow-y: auto;
+    }
+
+    #ChatCurrent {
+        width: calc(100% - 250px);
+        height:  480;
+    }
+    #ChatCurrentControl {
+        width: 100%;
+        height: 40px;
+
+        border-collapse: separate;
+        border-spacing: 10px;
+
+        margin-bottom: 10px;
+
+        background-color: #eee;
+    }
+    #ChatCurrentControlLeft {
+        width: 20px;
+    }
+    #ChatCurrentControlMiddle {
+        width: 80%;
+    }
+    #ChatCurrentControlMiddleTitle {
+        font-size: 100%; /* Размер шрифта в процентах */
+        font-family: serif; /* Шрифт с засечками */
+        position: relative; /* Относительное позиционирование */
+        top: 5px; /* Сдвиг сверху */
+    }
+
+    #ChatCurrentControlRight {
+        width: 20%;
+    }
+
+    #ChatCurrentBody {
+        width: 100%;
+        height: calc(100% - 40px);
+    }
+    #ChatCurrentBodyContent {
+        width: 100%;
+        height: 380px;
+
+        overflow-x: hidden;
+        overflow-y: scroll;
+    }
+
+    .ContactBody {
+        position: relative;
+
+        padding: 10px;
+        /*width: calc(100% - 30px); */
+        width: calc(100% - 12px);
+        height: 60px;
+        /*margin: 10px;*/
+        margin: 10px 0;
+
+        overflow-y: auto;
+
+        background-color: #FFF;
+        /*box-shadow: 0 2px 2px 0 rgba(0, 0, 0, .16), 0 0 2px 0 rgba(0, 0, 0, .12);*/
+        border: 1px solid rgba(0, 0, 0, .15);
+    }
+    .ContactBody p:nth-child(2) {
+        position: absolute;
+        right: 4px;
+        bottom: 4px;
+        text-align: right;
+        font-size: 10px;
+    }
+    .ContactBody:hover {
+        background: #e3f2fd; /*#F0E68C*/
+
+/*        -o-transform: scale(1.1);
+        -ms-transform: scale(1.1);
+        -moz-transform: scale(1.1);
+        -webkit-transform: scale(1.1);
+        transform: scale(1.1);*/
+
+    }
+    .ContactBody:active {
+        background: #90f090;
+
+        -o-transform: scale(0.9);
+        -ms-transform: scale(0.9);
+        -moz-transform: scale(0.9);
+        -webkit-transform: scale(0.9);
+        transform: scale(0.9);
+
+        margin: 13x;
+    }
+    .ContactBody.Selected {
+        background: #DFD;
+    }
+
+    .ChatCurrentBodyContentItem {
+        position: relative;
+
+        font-weight: normal;
+        font-style: normal;
+        line-height: 1.5;
+        font-family: inherit;
+
+        padding: 10px 10px 18px 10px;
+        width: 30vw;
+        margin: 10px;
+
+        overflow-y: auto;
+
+        background-color: #FFF;
+        box-shadow: 0 2px 2px 0 rgba(0, 0, 0, .16), 0 0 2px 0 rgba(0, 0, 0, .12);
+    }
+
+    .ChatCurrentBodyContentItem.RECEIVED {
+        border-radius: 5px 5px 5px 0px;
+        background-color: #EFE;
+
+    }
+
+    .ChatCurrentBodyContentItem.SENT {
+        border-radius: 5px 5px 0px 5px;
+
+        background-color: #EEF;
+        margin-left: calc(100% - 30vw - 10px);
+    }
+
+    #ChatListControl {
+        width: 250px;
+        height:  40px;
+
+        margin-bottom: 10px;
+    }
+    #ChatListControlIdentifier {
+        width: calc(100% - 30px - 60px);
+        margin: 5px 10px 0px 0px;
+    }
+    #ChatListControlSubmit {
+        width: 60px;
+    }
+
+    #ChatCurrentBodyInput {
+        width: 100%;
+        height: 30px;
+
+        margin-bottom: 10px;
+    }
+    #ChatCurrentBodyInputText {
+        width: calc(100% - 30px - 90px);
+        margin: 5px 10px 0px 0px;
+    }
+    #ChatCurrentBodyInputSubmit {
+        width: 80px;
+    }
+
+    .message-datetime{
+        position: absolute;
+        bottom: 2px;
+        right: 5px;
+        font-size: 9px;
+    }
+</style>
+
+<table id="Chat">
+    <td class="Panel" id="ChatList">
+        <div id="ChatListControl">
+            <input type="text" placeholder="Номер" id="ChatListControlIdentifier" onkeydown="if (event.keyCode == 13) Call_ChatListControl_New()">
+            <input type="button" class="cbi-button cbi-button-action important" title="<%:Open dialog with this phone number%>" value="<%:New%>" id="ChatListControlSubmit" onclick="Call_ChatListControl_New()">
+        </div>
+        <div id="ChatListBody">
+
+        </div>
+    </td>
+
+    <td class="Panel" id="ChatCurrent" hidden="hidden">
+        <table id="ChatCurrentControl">
+            <td id="ChatCurrentControlLeft">
+
+            </td>
+            <td id="ChatCurrentControlMiddle">
+                <span id="ChatCurrentControlMiddleTitle"></span>
+            </td>
+            <td id="ChatCurrentControlRight">
+
+            </td>
+        </table>
+        <div id="ChatCurrentBody">
+            <div id="ChatCurrentBodyContent">
+
+            </div>
+            <div id="ChatCurrentBodyInput">
+                <input type="text" placeholder="Написать сообщение..." id="ChatCurrentBodyInputText" onkeydown="if (event.keyCode == 13) Call_ChatCurrentBodyInput_Send()">
+                <input type="button" class="cbi-button important" title="<%:Send this message%>" value="<%:Send%>" id="ChatCurrentBodyInputSubmit" onclick="Call_ChatCurrentBodyInput_Send()">
+            </div>
+        </div>
+    </td>
+
+
+    <td class="Panel" id="ChatHelp">
+
+    </td>
+</table>
+
+<script type="text/javascript" src="<%=resource%>/cbi.js"></script>
+<script type="text/javascript">
+/*--------------------------------------------------------------------------------*/
+function Call_ChatListControl_New(){
+    var identifier = document.getElementById("ChatListControlIdentifier").value
+
+    identifier = identifier.replace(new RegExp("[A-Za-zА-Яа-я() -]",'g'),"")
+
+    if (identifier.length > 0){
+        if (Var_MessageTree[identifier] == null){
+            console.log("New identifier " + identifier)
+            Call_ChatListBodyItem_Update(
+                [
+                    {
+                        storage : {
+                            content : {
+                                text : "",
+                                number : identifier
+                            },
+                            properties : {
+                                state : "sent",
+                                timestamp : (new Date()).getTime() / 1000
+                            }
+                        }
+                    }
+                ])
+            Var_MessageTree[identifier] = []
+        }
+
+        Call_ChatListBodyItem_Select(identifier)
+    }
+}
+
+/*--------------------------------------------------------------------------------*/
+var Var_ChatListBodyItem_Selected = 0;
+
+function Call_ChatListBodyItem_Select(identifier){
+    if (Var_MessageTree[identifier] != null){
+        if (identifier != Var_ChatListBodyItem_Selected){
+            if (document.getElementById("ChatListBodyItem:" + Var_ChatListBodyItem_Selected)){
+                document.getElementById("ChatListBodyItem:" + Var_ChatListBodyItem_Selected).className = "ContactBody"
+            }
+
+            document.getElementById("ChatListBodyItem:" + identifier).className = "ContactBody Selected"
+            document.getElementById("ChatCurrentControlMiddleTitle").innerText = identifier
+
+            Var_ChatListBodyItem_Selected = identifier
+
+            document.getElementById("ChatCurrentBodyContent").innerHTML = ''
+
+            for (var index = 0; index < Var_MessageTree[identifier].length; index++){
+                Call_ChatCurrentBodyContentItem_Update(Var_MessageTree[identifier][index])
+            }
+
+            document.getElementById("ChatCurrentBodyInput").hidden = identifier.toString().match(/[A-Za-zА-Яа-я]+/gi) != null
+
+            document.getElementById("ChatCurrent").hidden = false
+            document.getElementById("ChatHelp").hidden = true
+
+            return true
+        }
+    }
+    return false
+}
+
+function Call_ChatListBodyItem_Check(data){
+    if (data && data[0] && data[0].storage.content){
+        var item = document.getElementById("ChatListBodyItem:" + data[0].storage.content.number)
+
+        return item
+    }
+
+    return null
+}
+
+function Call_ChatListBodyItem_Remove(data){
+    var item = Call_ChatListBodyItem_Check(data)
+
+    if (item){
+        document.getElementById("ChatListBody").removeChild(item)
+    }
+
+    return true
+}
+
+function UnixtimeRender(unix){
+    var dayNames = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
+
+    var MsgDate = new Date(unix * 1000);
+    var CurDate = new Date()
+
+    if ((CurDate.getTime() - MsgDate.getTime()) > 604800000){
+        return MsgDate.getDate()  + "." + ("0" + MsgDate.getMonth()+1).substr(-2) + "." + MsgDate.getFullYear();
+    }else{
+        var daysPassed = ((7 + CurDate.getDay() - MsgDate.getDay()) % 7)
+        if (daysPassed >= 2){
+            return dayNames[MsgDate.getDay()]
+        }else{
+            if (daysPassed == 0){
+                return "Сегодня в:\t" + ("0" + MsgDate.getHours()).substr(-2) + ":" + ("0" + MsgDate.getMinutes()).substr(-2)
+            }
+            if (daysPassed == 1){
+                return "Вчера в:\t" + ("0" + MsgDate.getHours()).substr(-2) + ":" + ("0" + MsgDate.getMinutes()).substr(-2)
+            }
+        }
+    }
+
+    return "Error"
+}
+
+function Call_ChatListBodyItem_Update(data){
+    var list = document.getElementById("ChatListBody")
+
+    var Item = Call_ChatListBodyItem_Check(data)
+    if (Item == null){
+        var E1 = document.createElement('div');
+        E1.id = "ChatListBodyItem:" + data[0].storage.content.number
+        E1.className = "ContactBody"
+        list.appendChild(E1)
+
+        Item = document.getElementById("ChatListBodyItem:" + data[0].storage.content.number)
+    }
+
+    Item.onclick = function(){
+        Call_ChatListBodyItem_Select(data[0].storage.content.number)
+    }
+
+
+    var ItemTitle = document.getElementById(Item.id + ":title")
+    if (ItemTitle == null) {
+        var E1 = document.createElement('p');
+        E1.id = Item.id + ":title"
+
+        Item.appendChild(E1)
+
+        ItemTitle = document.getElementById(Item.id + ":title")
+    }
+
+    var ItemTitleIdentifier= document.getElementById(ItemTitle.id + ":identifier")
+    if (ItemTitleIdentifier == null) {
+        var E1 = document.createElement('strong');
+        E1.id = ItemTitle.id + ":identifier"
+
+        ItemTitle.appendChild(E1)
+
+        ItemTitleIdentifier = document.getElementById(ItemTitle.id + ":identifier")
+    }
+    ItemTitleIdentifier.innerText = data[0].storage.content.number
+
+
+    var ItemTitleCount= document.getElementById(ItemTitle.id + ":count")
+    if (ItemTitleCount == null) {
+        var E1 = document.createElement('span');
+        E1.id = ItemTitle.id + ":count"
+
+        ItemTitle.appendChild(E1)
+
+        ItemTitleCount = document.getElementById(ItemTitle.id + ":count")
+    }
+    ItemTitleCount.innerText = "\t(" +  data.length + ")"
+
+
+    var ItemDate= document.getElementById(Item.id + ":date")
+    if (ItemDate == null) {
+        var E1 = document.createElement('p');
+        E1.id = Item.id + ":date"
+
+        Item.appendChild(E1)
+
+        ItemDate = document.getElementById(Item.id + ":date")
+    }
+    ItemDate.innerText = UnixtimeRender(data[data.length - 1].storage.properties.timestamp)
+
+    var ItemContent= document.getElementById(Item.id + ":content")
+    if (ItemContent == null) {
+        var E1 = document.createElement('p');
+        E1.id = Item.id + ":content"
+        E1.style = "white-space: nowrap; overflow: hidden; padding: 5px; text-overflow: ellipsis;"
+
+        Item.appendChild(E1)
+
+        ItemContent = document.getElementById(Item.id + ":content")
+    }
+    if (data[data.length - 1].storage.properties.state == "received"){
+        ItemContent.innerText = data[data.length - 1].storage.content.text.replace(new RegExp("\n",'g')," ")
+    }
+    if (data[data.length - 1].storage.properties.state == "sent"){
+        ItemContent.innerText = "Вы:\t" + data[data.length - 1].storage.content.text
+    }
+}
+/*--------------------------------------------------------------------------------*/
+function Call_ChatCurrentBodyContentItem_Check(data){
+    if (data && data.identifier){
+        var item = document.getElementById("ChatCurrentBodyContent:" + data.storage.content.number + ":" + data.storage.properties.timestamp)
+
+        return item
+    }
+
+    return null
+}
+
+function Call_ChatCurrentBodyContentItem_Remove(data){
+    var item = Call_ChatCurrentBodyContentItem_Check(data)
+
+    if (item){
+        document.getElementById("ChatCurrentBodyContent").removeChild(item)
+    }
+
+    return true
+}
+
+function Call_ChatCurrentBodyContentItem_Update(data){
+    if (!data)
+        return false;
+        
+    if (Var_MessageTree[Var_ChatListBodyItem_Selected] == null || Var_ChatListBodyItem_Selected != data.storage.content.number){
+        return false
+    }
+
+    var list = document.getElementById("ChatCurrentBodyContent")
+
+    var Item = Call_ChatCurrentBodyContentItem_Check(data)
+
+    if (Item == null){
+        var E1 = document.createElement('div');
+        E1.id = "ChatCurrentBodyContent:" + data.storage.content.number + ":" + data.storage.properties.timestamp
+        E1.className = "ChatCurrentBodyContentItem"
+        E1.className += " " + data.storage.properties.state.toUpperCase()
+
+        list.appendChild(E1)
+
+        Item = document.getElementById(E1.id)
+    }
+
+    var ItemText = document.getElementById(Item.id + ":text")
+    if (ItemText == null) {
+        var E1 = document.createElement('p');
+        E1.id = Item.id + ":text"
+        E1.style = "white-space: initial; word-break: keep-all;"
+
+        Item.appendChild(E1)
+
+        ItemText = document.getElementById(E1.id)
+    }
+    ItemText.innerText = data.storage.content.text
+
+    var ItemDate= document.getElementById(Item.id + ":date")
+    if (ItemDate == null) {
+        var E1 = document.createElement('p');
+        E1.id = Item.id + ":date"
+        E1.style = "text-align: right;"
+        E1.className = "message-datetime"
+
+        Item.appendChild(E1)
+
+        ItemDate = document.getElementById(E1.id)
+    }
+    ItemDate.innerText = UnixtimeRender(data.storage.properties.timestamp)
+
+    list.scrollTop = list.scrollHeight;
+}
+/*--------------------------------------------------------------------------------*/
+function Call_ChatCurrentBodyInput_Send(ChatCurrentBodyInputText){
+    var input = document.getElementById("ChatCurrentBodyInputText")
+
+    if (input.value.length > 0){
+        var identifier = 0
+        var content = input.value
+
+        if (Var_ChatListBodyItem_Selected == 0){
+            alert("no phone")
+        }
+
+        if (Var_ChatListBodyItem_Selected != 0){
+            identifier = Var_ChatListBodyItem_Selected
+        }
+
+        if (identifier != 0){
+            document.getElementById("ChatCurrentBodyInputText").disabled = true
+            document.getElementById("ChatCurrentBodyInputSubmit").disabled = true
+
+            XHR.get(
+                '<%=luci.dispatcher.build_url("admin", "network", "modem", tostring(modemName), "sms")%>',
+                { method: "create", params: `'${identifier}','${content}'` },
+                function(x, data){
+                    document.getElementById("ChatCurrentBodyInputText").disabled = false
+                    document.getElementById("ChatCurrentBodyInputSubmit").disabled = false
+
+                    switch (x.status){
+                    case 200:
+                        if (data) {
+                            if (data.result){
+                                document.getElementById("ChatCurrentBodyInputText").value = ''
+
+                                Var_MessageTree[identifier].push(
+                                    {
+                                        storage : {
+                                            content : {
+                                                text : "",
+                                                number : identifier
+                                            },
+                                            properties : {
+                                                state : "sent",
+                                                timestamp : (new Date()).getTime() / 1000
+                                            }
+                                        }
+                                    }
+                                );
+                            }
+
+                            if (data.error){
+                                console.log("error messaging cancel:\t" + data.error)
+                            }
+
+                            Call_ChatListBodyItem_Update(Var_MessageTree[identifier])
+                            Call_ChatListBodyItem_Select(identifier)
+                        }
+                        break;
+                    case 404:
+                        window.location.replace('<%=luci.dispatcher.build_url("admin", "network", "modem", tostring(modemName))%>');
+                        break;
+                    }
+                }
+            )
+        }
+    }
+
+}
+
+/*--------------------------------------------------------------------------------*/
+var Var_MessageTree = []
+
+function Call_GetUpdates(data){
+    for (identifier in data) {
+        if (Var_MessageTree[identifier] == null){
+            console.log("New identifier " + identifier)
+            Call_ChatListBodyItem_Update(data[identifier])
+            Var_MessageTree[identifier] = []
+        }
+
+        for (var index = data[identifier].length - 1; index >= 0; index--){
+            if ( !((data[identifier][index].storage.properties.state == "received") || (data[identifier][index].storage.properties.state == "sent")) ){
+                data[identifier].splice(index, 1);
+            }
+        }
+
+        var change = 0;
+        
+        for (var index = 0; index < data[identifier].length; index++){
+            if ( (data[identifier][index].storage.properties.state == "received") || (data[identifier][index].storage.properties.state == "sent") ){
+                if (Var_MessageTree[identifier][index] == null){
+                    console.log("New message " + identifier + " " + data[identifier][index].storage.content.text)
+                    Call_ChatCurrentBodyContentItem_Update(data[identifier][index])
+                    Var_MessageTree[identifier][index] = data[identifier][index]
+                    change++;
+                } else{
+                    if ((data[identifier][index].storage.content.text != Var_MessageTree[identifier][index].storage.content.text)){
+                        console.log("Update message " + identifier + " " + data[identifier][index].storage.content.text)
+                        Call_ChatCurrentBodyContentItem_Update(data[identifier][index])
+                        Var_MessageTree[identifier][index] = data[identifier][index]
+                        change++;
+                    }
+                }
+            }
+        }
+
+        if (change != 0){
+            console.log("Update identifier " + identifier)
+            Call_ChatListBodyItem_Update(data[identifier])
+        }
+    }
+
+    for (identifier in Var_MessageTree) {
+        if (data[identifier] == null){
+            console.log("Remove identifier " + identifier)
+            //Call_ChatListBodyItem_Remove(Var_MessageTree[identifier])
+            //delete Var_MessageTree[identifier]
+        }else{
+            var change = 0;
+
+            for (var index = 0; index < Var_MessageTree[identifier].length; index++){
+                if (!((Var_MessageTree[identifier][index] || {}).storage || {}).content)
+                    continue;
+
+                if (Var_MessageTree[identifier][index].storage.content.text == "--") {
+                    delete Var_MessageTree[identifier][index];
+                }
+
+                if (data[identifier][index] == null){
+                    console.log("Remove message " + identifier + " " + index)
+                    Call_ChatCurrentBodyContentItem_Remove(Var_MessageTree[identifier][index])
+                    delete Var_MessageTree[identifier][index]
+                } else{
+                    if ((data[identifier][index].content != Var_MessageTree[identifier][index].content)){
+                        console.log("Update message " + identifier + " " + data[identifier][index].content)
+                        Call_ChatCurrentBodyContentItem_Update(data[identifier][index])
+                        Var_MessageTree[identifier][index] = data[identifier][index]
+                        change++;
+                    }
+                }
+            }
+
+            if (change != 0){
+                console.log("Update identifier " + identifier)
+                Call_ChatListBodyItem_Update(data[identifier])
+            }
+        }
+    }
+}
+
+XHR.poll(5, '<%=luci.dispatcher.build_url("admin", "network", "modem", tostring(modemName), "sms")%>', { method: "list" },
+    function(x, data)
+    {
+        switch (x.status){
+            case 200:
+                if (data){
+                    if (data.result){
+                        Call_GetUpdates(data.result)
+                    }
+
+                    if (data.error){
+                        console.log("error messaging get source:\t" + data.error)
+                    }
+                }
+                break;
+
+            case 404:
+                //alert('<%:Device not founded - redirected%>')
+                window.location.replace('<%=luci.dispatcher.build_url("admin", "network", "modem", tostring(modemName))%>');
+                break;
+
+            default:
+                console.log(x)
+                console.log(data)
+                break;
+
+        };
+    }
+);
+
+</script>
+
+
+<%
+    luci.template.render("footer")
+%>

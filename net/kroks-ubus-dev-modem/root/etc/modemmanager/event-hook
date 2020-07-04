@@ -1,0 +1,23 @@
+#!/usr/bin/luajit
+
+ubus = require("ubus")
+
+if not (ubus) then
+        error("check require ubus")
+else
+        local result = {ubus.connect()}
+
+        if result[2] then
+                error("make connector")
+        else
+                connector = result[1]
+        end
+end
+
+sendObject = {
+        modemDbusPath = table.remove(arg, 1),
+        folder = table.remove(arg, 1),
+        content = {unpack(arg)}
+}
+
+connector:send("kroks.dev.modem:mm-listener", sendObject)

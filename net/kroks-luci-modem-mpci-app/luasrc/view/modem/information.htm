@@ -1,0 +1,443 @@
+<%
+    luci.template.render("header")
+
+    modemName = modemName or "modemX";
+
+    modemObject = modemObject or {};
+
+    modemObject.config = modemObject.config or {};
+
+    modemObject.simcard = modemObject.simcard or {};
+
+    modemObject.storage = modemObject.storage or {};
+    modemObject.storage.generic = modemObject.storage.generic or {};
+    modemObject.storage.generic["signal-quality"] = modemObject.storage.generic["signal-quality"] or {};
+    modemObject.storage.generic["active-bands"] = modemObject.storage.generic["active-bands"] or {};
+    modemObject.storage.generic["processed-bands"] = modemObject.storage.generic["processed-bands"] or {};
+    modemObject.storage["3gpp"] = modemObject.storage["3gpp"] or {};
+    modemObject.storage["3gpp"].eps = modemObject.storage["3gpp"].eps or {};
+    modemObject.storage.location = modemObject.storage.location or {};
+    modemObject.storage.location["3gpp"] = modemObject.storage.location["3gpp"] or {};
+    modemObject.storage.location["gps"] = modemObject.storage.location["gps"] or {};
+    modemObject.storage.location["cdma-bs"] = modemObject.storage.location["cdma-bs"] or {};
+    modemObject.storage.location = modemObject.storage.location or {};
+	modemObject.storage.signal = modemObject.storage.signal or {};
+	modemObject.storage.signal.cdma1x = modemObject.storage.signal.cdma1x or {rssi = "--"};
+	modemObject.storage.signal.evdo = modemObject.storage.signal.evdo or {rssi = "--"};
+	modemObject.storage.signal.gsm = modemObject.storage.signal.gsm or {rssi = "--"};
+	modemObject.storage.signal.umts = modemObject.storage.signal.umts or {rssi = "--"};
+	modemObject.storage.signal.lte = modemObject.storage.signal.lte or {rssi = "--"};
+
+    modemObject.condition = modemObject.condition or {};
+    modemObject.condition.simcard = modemObject.condition.simcard or "mpdemXsimcardY";
+
+    modemObject.simcard[modemObject.condition.simcard] = modemObject.simcard[modemObject.condition.simcard] or {};
+    modemObject.simcard[modemObject.condition.simcard].config = modemObject.simcard[modemObject.condition.simcard].config or {};
+    modemObject.simcard[modemObject.condition.simcard].storage = modemObject.simcard[modemObject.condition.simcard].storage or {};
+    modemObject.simcard[modemObject.condition.simcard].storage.properties = modemObject.simcard[modemObject.condition.simcard].storage.properties or {};
+
+    function generatorTableRow(id, name, content, unit)
+        id = tostring(id or "/generic/" + os.clock());
+        name = name or "no name";
+        content = content or "--";
+        content = type(content) == "table" and table.concat(content, ",") or content;
+        unit = unit or "";
+
+        local hidden = (#content == 0 or content == "--") and "hidden" or "";
+
+
+        local html = string.format(
+[[
+<tr %s id="%s" align="left" class="field">
+    <th width="200px"><span id="%s/name">%s</span></th>
+    <td>
+        <span id="%s/content">%s</span> <span>%s</span>
+    </td>
+</tr>
+]], hidden, id, id, name, id, content, unit);
+
+        return html;
+    end
+%>
+
+<script type="text/javascript" src="<%=resource%>/cbi.js"></script>
+<script type="text/javascript">
+
+    function resizeBlock() {
+        let divArray = document.getElementsByClassName("cbi-section");
+        let divHeightGroup = {};
+
+        for (let i in divArray) {
+            divHeightGroup[divArray[i].offsetTop] = divHeightGroup[divArray[i].offsetTop] || [];
+            divHeightGroup[divArray[i].offsetTop].push(divArray[i]);
+        }
+
+        Object.keys(divHeightGroup).forEach(i => {
+            divHeightGroup[i][0].style.height = null;
+            let maxHeight = divHeightGroup[i][0].offsetHeight;
+
+            for (let j = 1; j < divHeightGroup[i].length; j++) {
+                divHeightGroup[i][j].style.height = null;
+
+                if (maxHeight < divHeightGroup[i][j].offsetHeight) {
+                    maxHeight = divHeightGroup[i][j].offsetHeight;
+                }
+            }
+
+            for (let j = 0; j < divHeightGroup[i].length; j++) {
+                divHeightGroup[i][j].style.height = maxHeight + "px";
+            }
+        });
+    }
+
+    function processed_bands(data) {
+        if (!(((data.modemObject || {}).storage || {}).generic || {})["processed-bands"]) {
+            return false;
+        }
+
+        let cursor = data.modemObject.storage.generic["processed-bands"];
+
+        document.getElementById("modemObject/storage/generic/processed-bands").innerHTML = "";
+
+        for (let i = 0; i < cursor.length; i++) {
+            document.getElementById("modemObject/storage/generic/processed-bands").innerHTML += `
+            <div style="display: inline-block; width: 250px; padding-block-end: 10px;">
+                <div>
+                    <b><%:Name%>: </b>
+                    <span>${cursor[i]["band-alias"]} (${cursor[i]["band-name"]})</span>
+                </div>
+                <div>
+                    <b class=" name"><%:Freq DL%>: </b>
+                    <span>${cursor[i]["freq-download"].toFixed(2)} <%:MHz%></span>
+                </div>
+                <div>
+                    <b class=" name"><%:Freq UL%>: </b>
+                    <span>${cursor[i]["freq-upload"].toFixed(2)} <%:MHz%></span>
+                </div>
+                <div>
+                    <b class=" name"><%:Bandwidth%>: </b>
+                    <span>${cursor[i]["bandwidth"].toFixed(2)} <%:MHz%></span>
+                </div>
+            </div>
+            `;
+        }
+    }
+
+    XHR.poll(5, '<%=luci.dispatcher.build_url("admin", "network", "modem", tostring(modemName), "information")%>', { json: "true" }, function(x, data) {
+        switch (x.status){
+            case 200:
+                if (data){
+                    processed_bands(data)
+
+                    let fieldsArray = document.getElementsByClassName("field");
+
+                    for(let fieldIndex = 0; fieldIndex < fieldsArray.length; fieldIndex++) {
+                        let fieldObject = fieldsArray[fieldIndex];
+
+                        let cursor = data.modemObject || {};
+
+                        let jumpArray = (fieldObject.id || "").split("/");
+
+                        for(let jumpIndex = 0; jumpIndex < jumpArray.length; jumpIndex++) {
+                            let jumpValue = jumpArray[jumpIndex];
+
+                            if (cursor[jumpValue])
+                                cursor = cursor[jumpValue];
+                        }
+
+
+                        if (typeof(cursor) == "number" || cursor && cursor.length > 0 && cursor != "--") {
+                            document.getElementById((fieldObject.id || "")).hidden = false;
+                            
+                            if (document.getElementById((fieldObject.id || "") + "/content"))
+                                document.getElementById((fieldObject.id || "") + "/content").innerText = cursor;
+                            else
+                                document.getElementById((fieldObject.id || "")).innerText = cursor;
+                        } else {
+                            document.getElementById((fieldObject.id || "")).hidden = true;
+                        }
+                    }
+
+                    resizeBlock();
+                }
+                break;
+
+            case 404:
+                //alert('<%:Device not founded - redirected%>')
+                window.location.replace('<%=luci.dispatcher.build_url("admin", "network", "modem", tostring(modemName))%>');
+                break;
+
+            default:
+                console.log(x)
+                console.log(data)
+                break;
+
+        };
+    });
+
+
+    window.addEventListener("resize", resizeBlock);
+</script>
+
+<div id="/">
+    <div class="cbi-section" style="display: inline-block; width: 40%; min-width: 400px; max-width: 800px; height: 400px">
+        <h3><%:Modem%></h3>
+
+        <table>
+            <%
+                print(
+                    generatorTableRow("modemObject/storage/generic/manufacturer", translate("Manufacturer"), modemObject.storage.generic["manufacturer"]),
+                    generatorTableRow("modemObject/storage/generic/model", translate("Model"), modemObject.storage.generic["model"]),
+                    generatorTableRow("modemObject/storage/generic/revision", translate("Firmware revision"), modemObject.storage.generic["revision"]),
+                    generatorTableRow("modemObject/storage/generic/carrier-configuration", translate("Carrier config"), modemObject.storage.generic["carrier-configuration"]),
+                    generatorTableRow("modemObject/storage/generic/carrier-configuration-revision", translate("Carrier config revision"), modemObject.storage.generic["carrier-configuration-revision"]),
+                    generatorTableRow("modemObject/storage/generic/hardware-revision", translate("Hardware revision"), modemObject.storage.generic["hardware-revision"]),
+                    generatorTableRow("modemObject/storage/generic/current-capabilities", translate("Current capabilities"), modemObject.storage.generic["current-capabilities"]),
+                    generatorTableRow("modemObject/storage/generic/equipment-identifier", translate("IMEI"), modemObject.storage.generic["equipment-identifier"])
+                );
+            %>
+        </table>
+    </div>
+
+    <div class="cbi-section" style="display: inline-block; width: 40%; min-width: 400px; max-width: 800px; height: 400px">
+        <%
+            local simcardName = modemObject.condition.simcard;
+            local simcardObject = modemObject.simcard[simcardName];
+
+            local function generatorSimcardName(simcardName)
+                local other = tostring(simcardName);
+                local modemIndex, other = other:match("modem(%d+)(.*)")
+
+                local rsim = false
+                if other:find("rsim") then
+                    rsim = true
+                else
+                    rsim = false
+                end
+
+                local simcardIndex = other:match("sim(%d+)")
+
+                local output = ''
+
+                if rsim then
+                    output = luci.dispatcher.translate("remote") .." "
+                end
+
+                output = output ..string.format("%s %s", luci.dispatcher.translate("simcard"), simcardIndex)
+
+                return output
+            end
+        %>
+
+        <h3><%= generatorSimcardName(simcardName) %></h3>
+
+        <table>
+            <%
+                local id = "modemObject/simcard/".. simcardName .."/storage/properties/";
+
+                print(
+                    generatorTableRow(id .."imsi", translate("IMSI"), simcardObject.storage.properties["imsi"]),
+                    generatorTableRow(id .."iccid", translate("SIM ID"), simcardObject.storage.properties["iccid"]),
+                    generatorTableRow(id .."operator-code", translate("Operator code"), simcardObject.storage.properties["operator-code"]),
+                    generatorTableRow(id .."operator-name", translate("Operator name"), simcardObject.storage.properties["operator-name"]),
+                    generatorTableRow(id .."emergency-numbers", translate("Emergency numbers"), simcardObject.storage.properties["emergency-numbers"]),
+                    generatorTableRow(id .."own-numbers", translate("Own numbers"), modemObject.storage.generic["own-numbers"]),
+                    ""
+                );
+
+                local id = "modemObject/simcard/".. simcardName .."/config/";
+
+                print(
+                    generatorTableRow(id .."apn", translate("APN"), simcardObject.config["apn"]),
+                    ""
+                );
+            %>
+
+            <tr align="left">
+                <th width="200px"><span><%:Auth%></span></th>
+                <td>
+                    <span class="field" id="<%= id %>auth"><%= simcardObject.config["auth"] %></span> 
+                    <span class="field" id="<%= id %>username"><%= simcardObject.config["username"] %></span> 
+                    <span class="field" id="<%= id %>password"><%= simcardObject.config["password"] %></span> 
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="cbi-section" style="display: inline-block; width: 40%; min-width: 400px; max-width: 800px; height: 400px">
+        <h3><%:Status%></h3>
+
+        <table>
+            <%
+                print(
+                    generatorTableRow("modemObject/storage/generic/unlock-required", translate("SIM Lock"), modemObject.storage.generic["unlock-required"]),
+                    generatorTableRow("modemObject/storage/generic/unlock-retries", translate("SIM unlock retries"), modemObject.storage.generic["unlock-retries"]),
+                    generatorTableRow("modemObject/storage/generic/state", translate("State"), modemObject.storage.generic["state"]),
+                    generatorTableRow("modemObject/storage/generic/state-failed-reason", translate("Failed reason"), modemObject.storage.generic["state-failed-reason"]),
+                    generatorTableRow("modemObject/storage/generic/power-state", translate("Power state"), modemObject.storage.generic["power-state"]),
+                    generatorTableRow("modemObject/storage/generic/access-technologies", translate("Access technology"), modemObject.storage.generic["access-technologies"]),
+                    generatorTableRow("modemObject/storage/generic/signal-quality/value", translate("Signal quality"), modemObject.storage.generic["signal-quality"].value, "%"),
+
+                    ""
+                );
+            %>
+
+            <tr align="left">
+                <th><%:Bands%></th>
+                <td>
+                    <div id="modemObject/storage/generic/processed-bands"></div>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="cbi-section" style="display: inline-block; width: 40%; min-width: 400px; max-width: 800px; height: 400px">
+        <h3><%:Location%></h3>
+
+        <div id="modemObject/storage/location/3gpp/mcc" class="field">
+            <b style="display: table;">3GPP <%:location%></b>
+            <table>
+                <%
+                    print(
+                        generatorTableRow("modemObject/storage/location/3gpp/mcc", translate("MCC"), modemObject.storage.location["3gpp"]["mcc"], "(dec)"),
+                        generatorTableRow("modemObject/storage/location/3gpp/mnc", translate("MNC"), modemObject.storage.location["3gpp"]["mnc"], "(dec)"),
+                        generatorTableRow("modemObject/storage/location/3gpp/lac", translate("LAC"), modemObject.storage.location["3gpp"]["lac"], "(hex)"),
+                        generatorTableRow("modemObject/storage/location/3gpp/tac", translate("TAC"), modemObject.storage.location["3gpp"]["tac"], "(hex)"),
+                        generatorTableRow("modemObject/storage/location/3gpp/cid", translate("Cell ID"), modemObject.storage.location["3gpp"]["cid"], "(hex)"),
+                        ""
+                    );
+                %>
+            </table>
+        </div>
+
+        <div id="modemObject/storage/location/gps/longitude" class="field">
+            <b style="display: table;">GPS <%:location%></b>
+            <table>
+                <%
+                    print(
+                        generatorTableRow("modemObject/storage/location/gps/nmea", translate("NMEA"), modemObject.storage.location.gps["nmea"]),
+                        generatorTableRow("modemObject/storage/location/gps/utc", translate("UTC"), modemObject.storage.location.gps["utc"]),
+                        generatorTableRow("modemObject/storage/location/gps/longitude", translate("Longitude"), modemObject.storage.location.gps["longitude"]),
+                        generatorTableRow("modemObject/storage/location/gps/latitude", translate("Latitude"), modemObject.storage.location.gps["latitude"]),
+                        generatorTableRow("modemObject/storage/location/gps/altitude", translate("Altitude"), modemObject.storage.location.gps["altitude"]),
+                        ""
+                    );
+                %>
+            </table>
+        </div>
+
+        <div id="modemObject/storage/location/cdma-bs/longitude" class="field">
+            <b style="display: table;">CDMA-BS <%:location%></b>
+            <table>
+                <%
+                    print(
+                        generatorTableRow("modemObject/storage/location/cdma-bs/longitude", translate("Longitude"), modemObject.storage.location["cdma-bs"]["longitude"]),
+                        generatorTableRow("modemObject/storage/location/cdma-bs/latitude", translate("Latitude"), modemObject.storage.location["cdma-bs"]["latitude"]),
+                        ""
+                    );
+                %>
+            </table>
+        </div>
+    </div>
+
+    <div class="cbi-section" style="display: inline-block; width: 40%; min-width: 400px; max-width: 800px; height: 400px">
+        <h3><%:Bands & Modes%></h3>
+        <table>
+            <%
+                print(
+                    generatorTableRow("modemObject/storage/generic/current-modes", translate("Current modes"), modemObject.storage.generic["current-modes"]),
+                    generatorTableRow("modemObject/storage/generic/current-bands", translate("Current bands"), modemObject.storage.generic["current-bands"]),
+
+                    ""
+                );
+            %>
+        </table>
+    </div>
+
+    <div class="cbi-section" style="display: inline-block; width: 40%; min-width: 400px; max-width: 800px; height: 400px">
+        <h3><%:3GPP%></h3>
+        <table>
+            <%
+                print(
+                    generatorTableRow("modemObject/storage/3gpp/enabled-locks", translate("Enabled locks"), modemObject.storage["3gpp"]["enabled-locks"]),
+                    generatorTableRow("modemObject/storage/3gpp/operator-code", translate("Operator code"), modemObject.storage["3gpp"]["operator-code"]),
+                    generatorTableRow("modemObject/storage/3gpp/operator-name", translate("Operator name"), modemObject.storage["3gpp"]["operator-name"]),
+                    generatorTableRow("modemObject/storage/3gpp/registration-state", translate("Registration"), modemObject.storage["3gpp"]["registration-state"]),
+                    generatorTableRow("modemObject/storage/3gpp/eps/ue-mode-operation", translate("UE mode"), modemObject.storage["3gpp"].eps["ue-mode-operation"]),
+                    ""
+                );
+            %>
+        </table>
+    </div>
+
+    <div id="modemObject/storage/signal/cdma1x/rssi" class="cbi-section field" style="display: <%= modemObject.storage.signal.cdma1x["rssi"] == "--" and "none" or "inline-block"%>; width: 40%; min-width: 400px; max-width: 800px; height: 400px">
+        <h3><%:Signal%> CDMA 1x</h3>
+        <table>
+            <%
+                print(
+                    generatorTableRow("modemObject/storage/signal/cdma1x/rssi", translate("RSSI"), modemObject.storage.signal.cdma1x["rssi"], "dBm"),
+                    generatorTableRow("modemObject/storage/signal/cdma1x/ecio", translate("Ec/Io"), modemObject.storage.signal.cdma1x["ecio"]),
+                    ""
+                );
+            %>
+        </table>
+    </div>
+
+    <div id="modemObject/storage/signal/evdo/rssi" class="cbi-section field" style="display: <%= modemObject.storage.signal.evdo["rssi"] == "--" and "none" or "inline-block"%>; width: 40%; min-width: 400px; max-width: 800px; height: 400px">
+        <h3><%:Signal%> EV-DO</h3>
+        <table>
+            <%
+                print(
+                    generatorTableRow("modemObject/storage/signal/evdo/rssi", translate("RSSI"), modemObject.storage.signal.evdo["rssi"], "dBm"),
+                    generatorTableRow("modemObject/storage/signal/evdo/ecio", translate("Ec/Io"), modemObject.storage.signal.evdo["ecio"], "dBm"),
+                    generatorTableRow("modemObject/storage/signal/evdo/sinr", translate("SINR"), modemObject.storage.signal.evdo["sinr"]),
+                    generatorTableRow("modemObject/storage/signal/evdo/io", translate("Io"), modemObject.storage.signal.evdo["io"]),
+                    ""
+                );
+            %>
+        </table>
+    </div>
+
+    <div id="modemObject/storage/signal/gsm/rssi" class="cbi-section field" style="display: <%= modemObject.storage.signal.gsm["rssi"] == "--" and "none" or "inline-block"%>; width: 40%; min-width: 400px; max-width: 800px; height: 400px">
+        <h3><%:Signal%> GSM</h3>
+        <table>
+            <%
+                print(
+                    generatorTableRow("modemObject/storage/signal/gsm/rssi", translate("RSSI"), modemObject.storage.signal.gsm["rssi"], "dBm"),
+                    ""
+                );
+            %>
+        </table>
+    </div>
+
+    <div id="modemObject/storage/signal/umts/rssi" class="cbi-section field" style="display: <%= modemObject.storage.signal.umts["rssi"] == "--" and "none" or "inline-block"%>; width: 40%; min-width: 400px; max-width: 800px; height: 400px">
+        <h3><%:Signal%> UMTS</h3>
+        <table>
+            <%
+                print(
+                    generatorTableRow("modemObject/storage/signal/umts/rssi", translate("RSSI"), modemObject.storage.signal.umts["rssi"], "dBm"),
+                    generatorTableRow("modemObject/storage/signal/umts/rscp", translate("RSCP"), modemObject.storage.signal.umts["rscp"], "dBm"),
+                    generatorTableRow("modemObject/storage/signal/umts/ecio", translate("Ec/Io"), modemObject.storage.signal.umts["ecio"]),
+                    ""
+                );
+            %>
+        </table>
+    </div>
+
+    <div id="modemObject/storage/signal/lte/rssi" class="cbi-section field" style="display: <%= modemObject.storage.signal.lte["rssi"] == "--" and "none" or "inline-block"%>; width: 40%; min-width: 400px; max-width: 800px; height: 400px">
+        <h3><%:Signal%> LTE</h3>
+        <table>
+            <%
+                print(
+                    generatorTableRow("modemObject/storage/signal/lte/rssi", translate("RSSI"), modemObject.storage.signal.lte["rssi"], "dBm"),
+                    generatorTableRow("modemObject/storage/signal/lte/rsrq", translate("RSRQ"), modemObject.storage.signal.lte["rsrq"], "dBm"),
+                    generatorTableRow("modemObject/storage/signal/lte/rsrp", translate("RSRP"), modemObject.storage.signal.lte["rsrp"], "dB"),
+                    generatorTableRow("modemObject/storage/signal/lte/snr", translate("SNR"), modemObject.storage.signal.lte["snr"]),
+                    ""
+                );
+            %>
+        </table>
+    </div>
+</div>
+
+<% luci.template.render("footer") %>

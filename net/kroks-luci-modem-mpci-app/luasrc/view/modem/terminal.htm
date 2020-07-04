@@ -1,0 +1,120 @@
+<%
+    luci.template.render("header")
+%>
+
+<script>
+    let outputText = sessionStorage.getItem("output");
+
+    if (!outputText) {
+        outputText = "KROKS AT Terminal\n\n";
+        sessionStorage.setItem("output", outputText);
+    }
+
+    let inputText = sessionStorage.getItem("input");
+
+    if (!inputText) {
+        inputText = "ATI";
+        sessionStorage.setItem("input", inputText);
+    }
+
+
+    let historyAray = JSON.parse(localStorage.getItem("history") || "[]");
+
+    if (historyAray.length == 0) {
+        historyAray.push({ text: "ATI", title: "--" });
+        localStorage.setItem("history", JSON.stringify(historyAray));
+    }
+    
+    function historySelect() {
+        let select = document.getElementById("history");
+        let option = select.options[select.selectedIndex];
+
+        document.getElementById("input").value = option.text;
+        inputChange();
+    }
+
+    function inputChange() {
+        let input = document.getElementById("input");
+        sessionStorage.setItem("input", input.value);
+    }
+
+    function requestClick() {
+        let input = document.getElementById("input");
+
+        outputText += `>> ${input.value}\n`;
+        sessionStorage.setItem("output", outputText);
+        document.getElementById("output").value = outputText;
+
+        document.getElementById("output").scrollTop = document.getElementById("output").scrollHeight - document.getElementById("output").clientHeight;
+
+        document.getElementById("request").disabled = true;
+
+        XHR.get('<%=luci.dispatcher.build_url("admin", "network", "modem", tostring(modemName), "terminal")%>', { request: encodeURIComponent(input.value), }, function(x, data){
+            switch (x.status){
+            case 200:
+                if (data) {
+                    if (data.result || !data.error){
+                        outputText += `<< ${data.result || "OK"}\n\n`;
+                        sessionStorage.setItem("output", outputText);
+                        document.getElementById("output").value = outputText;
+
+                        historyAray.unshift({ text: input.value, title: data.result });
+                        localStorage.setItem("history", JSON.stringify(historyAray));
+
+                        let select = document.getElementById("history");
+                        let option = document.createElement("option");
+                        option.text = input.value;
+                        option.title =  data.result;
+                        select.insertBefore(option, select.firstChild);
+                    }
+
+                    if (data.error){
+                        outputText += `<< ERROR: ${data.error}\n\n`;
+                        sessionStorage.setItem("output", outputText);
+                        document.getElementById("output").value = outputText;
+                    }
+
+                    document.getElementById("output").scrollTop = document.getElementById("output").scrollHeight - document.getElementById("output").clientHeight;
+                    document.getElementById("request").disabled = false;
+                }
+                break;
+            case 404:
+                window.location.replace('<%=luci.dispatcher.build_url("admin", "network", "modem", tostring(modemName))%>');
+                break;
+            }
+        });
+    }
+</script>
+
+
+<div class="cbi-section" style="height: 300px;">
+    <div style="display: inline-block; width:79%">
+        <textarea id="output" readonly rows="15" style="width: 100%; height: 90%; resize: none;"></textarea>
+        <br>
+        <b>#></b> <input id="input" style="width: 85%; height: 10%;" onchange="inputChange()">
+        <button id="request" class="cbi-button cbi-button-apply" style="width: 10%;" onclick="requestClick()"><%:Request%></button>
+    </div>
+
+    <div style="display: inline-block; width:19%">
+        <select id="history" size="16" style="width:100%; height: 100%;" onchange="historySelect()"></select>
+    </div>
+</div>
+
+<script>
+    document.getElementById("output").value = outputText;
+    document.getElementById("output").scrollTop = document.getElementById("output").scrollHeight - document.getElementById("output").clientHeight;
+
+    document.getElementById("input").value = inputText;
+
+    let select = document.getElementById("history");
+    for(let i = 0; i < historyAray.length; i++) {
+        let option = document.createElement("option");
+        option.text = historyAray[i].text;
+        option.title = historyAray[i].title;
+        select.add(option);
+    }
+</script>
+
+<%
+    luci.template.render("footer")
+%>

@@ -1,0 +1,56 @@
+#!/bin/sh
+
+. /lib/functions.sh
+
+OUT_DIR="$1"
+[ -n "$OUT_DIR" ] || OUT_DIR="/etc/config"
+
+add_ipv4_hosts() {
+	uci -q batch <<-EOF
+		set kroks-util-ping.$1='interface'
+		add_list kroks-util-ping.$1.host='74.125.205.102'
+		add_list kroks-util-ping.$1.host='213.180.204.62'
+		add_list kroks-util-ping.$1.host='216.218.186.2'
+	EOF
+}
+
+scan_interfaces() {
+	case "$1" in
+		loopback|lan*) : ;;
+		*)
+			local proto
+			config_get proto "$1" proto
+
+			case "$proto" in
+				static|dhcp|pppoe)
+					local ifname
+					config_get ifname "$1" ifname
+					if [ -n "$ifname" ]; then
+						add_ipv4_hosts "$1"
+					fi
+					;;
+				modemmanager)
+					add_ipv4_hosts "$1"
+					;;
+				*) : ;;
+			esac
+		;;
+	esac
+}
+
+generate_kroks_util_ping() {
+	uci -q batch <<-EOF
+		set kroks-util-ping.ubus='ping'
+		set kroks-util-ping.ubus.count='5'
+		set kroks-util-ping.ubus.deadline='10000'
+		set kroks-util-ping.ubus.packetsize='56'
+		set kroks-util-ping.ubus.ttl='64'
+	EOF
+
+	config_load network
+	config_foreach scan_interfaces interface
+}
+
+> $OUT_DIR/kroks-util-ping
+generate_kroks_util_ping
+uci -c $OUT_DIR commit kroks-util-ping

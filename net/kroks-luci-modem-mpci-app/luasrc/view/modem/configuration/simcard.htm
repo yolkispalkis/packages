@@ -1,0 +1,616 @@
+<%
+local uci = require "luci.model.uci"
+
+if uci and uci:get('kroks-dev-modem', modemName, 'simcard') then
+    local simcardList = {}
+
+    uci:foreach("kroks-dev-modem", "simcard", function (section)
+        if section.modem == modemName then
+            if not (modemObject.simcard[section[".name"]]) then
+                modemObject.simcard[section[".name"]] = modemObject.simcard[section[".name"]] or {}
+                local cursor = modemObject.simcard[section[".name"]]
+
+                cursor.condition = {
+                    gpioPower = 0
+                }
+
+                cursor.storage = {}
+
+                cursor.config = section
+            end
+
+            table.insert(simcardList, section[".name"])
+        end
+    end)
+
+
+    function SimcardName_ParseView(str)
+        local other = tostring(str)
+        local modemIndex, other = other:match("modem(%d+)(.*)")
+
+        local rsim = false
+        if other:find("rsim") then
+            rsim = true
+        else
+            rsim = false
+        end
+
+        local simcardIndex = other:match("sim(%d+)")
+
+        local output = ''
+
+        if rsim then
+            output = '<b>' ..luci.dispatcher.translate("R") .."</b> "
+        end
+
+        output = output ..string.format("%s %s", luci.dispatcher.translate("simcard"), simcardIndex)
+
+        return output
+    end
+
+    local CHANGE = 0
+    local fieldsNameBase = '/simcard/'
+    local thisIsPost = luci.http.urldecode(luci.http.formvalue('post'), true)
+%>
+    <% if #simcardList > 1 then
+            local simcardCountEnabled = 0;
+
+            for simcardIndex, simcardName in pairs(simcardList) do
+                local simcardObject = modemObject.simcard[simcardName]
+
+                if simcardObject.config.enabled == '1' then
+                    simcardCountEnabled = simcardCountEnabled + 1
+                end
+            end
+
+            if simcardCountEnabled > 1 then
+                local trigger, other = (modemObject.config.simcardSwitch or 'none'):match("([^:]+):*(.*)")
+                local argument = {}
+                for arg in other:gmatch('([%-%d]+)') do
+                    table.insert(argument, tonumber(arg) or 0)
+                end
+
+                local fieldsNameBase = fieldsNameBase ..'switch/'
+
+    %>
+
+    <div class="cbi-section">
+        <h3>SIM <%:Card switch%>:</h3>
+
+        <table width="100%" cellspacing="50">
+            <tr>
+                <th align="left" style="width: 100px;"><%:Switch trigger%></th>
+                <th align="left" style="width: 100px;"></th>
+            </tr>
+            <tr>
+                <td>
+                    <%
+                        local fieldsName = fieldsNameBase ..'trigger'
+                        local valueA = luci.http.urldecode(luci.http.formvalue(fieldsName), true)
+                        local valueB = trigger or 'none'
+                        local valueC = valueA or valueB
+                    %>
+                    <input
+                        id="<%= fieldsName %>/none"
+                        type="radio"
+                        name="<%= fieldsName %>"
+                        value="none"
+                        <%= "none" == valueC and 'checked' or '' %>
+                    />
+                    <label
+                        style="vertical-align: middle"
+                        for="<%= fieldsName %>/none">
+                                                <%:Disabled%>
+                                                            </label>
+                </td>
+                <td>
+                    --
+                </td>
+            </tr>
+
+            <tr>
+                <td>
+                    <%
+                        local fieldsName = fieldsNameBase ..'trigger'
+                        local valueA = luci.http.urldecode(luci.http.formvalue(fieldsName), true)
+                        local valueB = trigger or 'none'
+                        local valueC = valueA or valueB
+                    %>
+                    <input
+                        id="<%= fieldsName %>/reliability"
+                        type="radio"
+                        name="<%= fieldsName %>"
+                        value="reliability"
+                        <%= "reliability" == valueC and 'checked' or '' %>
+                    />
+                    <label
+                        style="vertical-align: middle"
+                        for="<%= fieldsName %>/reliability">
+                                                <%:Connection reliability%>
+                                                            </label>
+                </td>
+
+                <td>
+                    <table>
+                        <tr>
+                            <th align="left" style="width: 100px;"><%:Level reliability%></th>
+                            <td>
+                                <%
+                                    local fieldsName = fieldsNameBase ..'reliability/1'
+                                    local valueA = luci.http.urldecode(luci.http.formvalue(fieldsName), true) or thisIsPost and ""
+                                    local valueB = trigger == "reliability" and argument[1] or "50"
+                                %>
+                                <input
+                                        type="number"
+                                        min="10"
+                                        max="100"
+                                        name="<%= fieldsName %>"
+                                        placeholder="<%= valueB %>"
+                                        value="<%= valueA or valueB %>"
+                                />
+                                %
+                            </td>
+                        </tr>
+                        <tr>
+                            <th align="left" style="width: 100px;"><%:Delay before%></th>
+                            <td>
+                                <%
+                                    local fieldsName = fieldsNameBase ..'reliability/2'
+                                    local valueA = luci.http.urldecode(luci.http.formvalue(fieldsName), true) or thisIsPost and ""
+                                    local valueB = trigger == "reliability" and argument[2] or "120"
+                                %>
+                                <input
+                                        type="number"
+                                        min="0"
+                                        max="1000"
+                                        name="<%= fieldsName %>"
+                                        placeholder="<%= valueB %>"
+                                        value="<%= valueA or valueB %>"
+                                />
+                                <%:second%>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th align="left" style="width: 100px;"><%:Delay after%></th>
+                            <td>
+                                <%
+                                    local fieldsName = fieldsNameBase ..'reliability/3'
+                                    local valueA = luci.http.urldecode(luci.http.formvalue(fieldsName), true) or thisIsPost and ""
+                                    local valueB = -tonumber(trigger == "reliability" and argument[3] or "-120")
+                                %>
+                                <input
+                                        type="number"
+                                        min="0"
+                                        max="1000"
+                                        name="<%= fieldsName %>"
+                                        placeholder="<%= valueB %>"
+                                        value="<%= valueA or valueB %>"
+                                />
+                                <%:second%>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+
+            <tr>
+                <td>
+                    <%
+                        local fieldsName = fieldsNameBase ..'trigger'
+                        local valueA = luci.http.urldecode(luci.http.formvalue(fieldsName), true)
+                        local valueB = trigger or 'none'
+                        local valueC = valueA or valueB
+                    %>
+                    <input
+                        id="<%= fieldsName %>/rtt"
+                        type="radio"
+                        name="<%= fieldsName %>"
+                        value="rtt"
+                        <%= "rtt" == valueC and 'checked' or '' %>
+                    />
+                    <label
+                        style="vertical-align: middle"
+                        for="<%= fieldsName %>/rtt">
+                                                <%:Lag conection%>
+                                                            </label>
+                </td>
+
+                <td>
+                    <table>
+                        <tr>
+                            <th align="left" style="width: 100px;"><%:Lag size%></th>
+                            <td>
+                                <%
+                                    local fieldsName = fieldsNameBase ..'rtt/1'
+                                    local valueA = luci.http.urldecode(luci.http.formvalue(fieldsName), true) or thisIsPost and ""
+                                    local valueB = trigger == "rtt" and argument[1] or "200"
+                                %>
+                                <input
+                                        type="number"
+                                        min="50"
+                                        max="5000"
+                                        name="<%= fieldsName %>"
+                                        placeholder="<%= valueB %>"
+                                        value="<%= valueA or valueB %>"
+                                />
+                                <%:milliseconds%>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th align="left" style="width: 100px;"><%:Delay before%></th>
+                            <td>
+                                <%
+                                    local fieldsName = fieldsNameBase ..'rtt/2'
+                                    local valueA = luci.http.urldecode(luci.http.formvalue(fieldsName), true) or thisIsPost and ""
+                                    local valueB = trigger == "rtt" and argument[2] or "120"
+                                %>
+                                <input
+                                        type="number"
+                                        min="0"
+                                        max="1000"
+                                        name="<%= fieldsName %>"
+                                        placeholder="<%= valueB %>"
+                                        value="<%= valueA or valueB %>"
+                                />
+                                <%:second%>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th align="left" style="width: 100px;"><%:Delay after%></th>
+                            <td>
+                                <%
+                                    local fieldsName = fieldsNameBase ..'rtt/3'
+                                    local valueA = luci.http.urldecode(luci.http.formvalue(fieldsName), true) or thisIsPost and ""
+                                    local valueB = -tonumber(trigger == "rtt" and argument[3] or "-120")
+                                %>
+                                <input
+                                        type="number"
+                                        min="0"
+                                        max="1000"
+                                        name="<%= fieldsName %>"
+                                        placeholder="<%= valueB %>"
+                                        value="<%= valueA or valueB %>"
+                                />
+                                <%:second%>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <%
+                if thisIsPost then
+                    local fieldsName = fieldsNameBase ..'trigger'
+                    local _trigger = luci.http.urldecode(luci.http.formvalue(fieldsName), true)
+
+                    local fieldsName = fieldsNameBase .._trigger ..'/1'
+                    local _arg1 = luci.http.urldecode(luci.http.formvalue(fieldsName), true)
+                    local fieldsName = fieldsNameBase .._trigger ..'/2'
+                    local _arg2 = luci.http.urldecode(luci.http.formvalue(fieldsName), true)
+                    local fieldsName = fieldsNameBase .._trigger ..'/3'
+                    local _arg3 = luci.http.urldecode(luci.http.formvalue(fieldsName), true)
+
+                    local requestConfig = ""
+                    if _trigger == "none" then
+                        requestConfig = _trigger
+                    elseif _trigger == "reliability" then
+                        requestConfig = string.format("%s:%s,%s,%s", _trigger, _arg1 or 50, _arg2 or 120, -tonumber(_arg3 or 120))
+                    elseif _trigger == "rtt" then
+                        requestConfig = string.format("%s:%s,%s,%s", _trigger, _arg1 or 200, _arg2 or 120, -tonumber(_arg3 or 120))
+                    end
+
+                    local currectConfig = (modemObject.config.simcardSwitch or 'none')
+
+                    if currectConfig ~= requestConfig then
+                        uci:set('kroks-dev-modem', modemName, 'simcardSwitch', requestConfig)
+                        CHANGE = CHANGE + 1
+                    end
+                end
+
+            end
+        end
+    %>
+
+    <div class="cbi-section">
+        <h3>SIM <%:Card%>:</h3>
+
+
+        <table width="100%" cellspacing="50">
+            <tr>
+        <% if #simcardList > 1 then %>
+			<th align="left" style="width: 50px;">№</th>
+			<th align="left" style="width: 50px;"><%:Active SIM Card%></th>
+			<th align="left" style="width: 50px;"><%:Primary SIM Card%></th>
+			<th align="left" style="width: 50px;"><%:Enabled%></th>
+		<% end %>
+
+                <th align="left" style="width: 150px;"><%:Name%></th>
+                <th align="left" style="width: 500px;"><%:Configuration%></th>
+            </tr>
+
+        <%
+        local rsimAvailable = os.execute("ls /usr/share/kroks/simslave.updated &>/dev/null") == 0;
+
+        for simcardIndex, simcardName in pairs(simcardList) do
+            local simcardObject = modemObject.simcard[simcardName]
+
+            local rsim = simcardName:match("rsim");
+
+            if simcardObject and (not rsim or rsimAvailable) then
+                %><tr>
+            <% if #simcardList > 1 then %>
+                    <td>
+                        <%= simcardIndex %>
+                    </td>
+
+                    <td>
+                        <% if modemObject.simcard[simcardName].config.enabled == "1" then %>
+                            <%
+                                local fieldsName = fieldsNameBase ..'power'
+                                local valueA = luci.http.urldecode(luci.http.formvalue(fieldsName), true)
+                                local valueB = simcardObject.condition.powerGpio == 1 and simcardName
+                                local valueC = valueA or valueB or "simcardY"
+                            %>
+
+                            <input
+                                    type="radio"
+                                    name="<%= fieldsName %>"
+                                    style="<%= valueA and valueA ~= '' and valueA ~= valueB  and "background-color: #90f090" or ""%>"
+                                    value="<%= simcardName %>"
+
+                                    <%= simcardName == valueC and 'checked' or '' %>
+                            />
+
+                            <%
+                                if valueA and valueA ~= '' and valueA ~= valueB then
+                                    os.execute(string.format([[ubus call kroks.dev.modem.%s simcard '{"%s" : true}' 1>/dev/null]], modemName, valueC))
+                                end
+                            %>
+                        <% end %>
+                    </td>
+
+                    <td>
+                        <% if modemObject.simcard[simcardName].config.enabled == "1" then %>
+
+                            <%
+                                local fieldsName = fieldsNameBase ..'firstSimCard'
+                                local valueA = luci.http.urldecode(luci.http.formvalue(fieldsName), true)
+                                local valueB = modemObject.config.simcard
+                                local valueC = valueA or valueB or "simcardY"
+                            %>
+
+                            <input
+                                    type="radio"
+                                    name="<%= fieldsName %>"
+                                    style="<%= valueA and valueA ~= '' and valueA ~= valueB  and "background-color: #90f090" or ""%>"
+                                    value="<%= simcardName %>"
+
+                                    <%= simcardName == valueC and 'checked' or '' %>
+                            />
+
+                            <%
+                                if valueA and valueA ~= '' and valueA ~= valueB then
+                                    uci:set('kroks-dev-modem', modemName, 'simcard', valueC)
+                                    CHANGE = CHANGE + 1
+                                end
+                            %>
+                        <% end %>
+                    </td>
+
+                    <td>
+                        <% if modemObject.config.simcard ~= simcardName then %>
+                            <%
+                                local fieldsName = fieldsNameBase ..'enabled/' ..simcardIndex
+                                local valueA = luci.http.urldecode(luci.http.formvalue(fieldsName), true)
+                                if thisIsPost then
+                                    valueA = valueA and valueA == 'on' and "1" or "0"
+                                end
+                                local valueB = simcardObject.config.enabled
+                                local valueC = valueA or valueB
+                            %>
+
+                            <input
+                                    type="checkbox"
+                                    name="<%= fieldsName %>"
+                                    style="<%= valueA and valueA ~= '' and valueA ~= valueB  and "background-color: #90f090" or ""%>"
+
+                                    <%= valueC == "1" and 'checked' or '' %>
+
+                                    title="<%= valueA and valueA ~= '' and valueA ~= valueB  and 'Last value: %s' % {valueB} or ""%>"
+                            />
+
+                            <%
+                                if valueA and valueA ~= '' and valueA ~= valueB then
+                                    uci:set('kroks-dev-modem', simcardName, 'enabled', valueA)
+                                    CHANGE = CHANGE + 1
+                                end
+                            %>
+                        <% else %>
+				<input
+					type="checkbox"
+					checked
+					disabled
+					title="<%:Active Sim-card can't be unchecked%>"
+				/>
+                        <% end %>
+                    </td>
+			<% end %>
+                    <td>
+                        <%= SimcardName_ParseView(simcardName) %>
+
+                        <% if ((simcardObject.storage or {}).properties or {})["operator-name"] then %>
+                            (<%= ((simcardObject.storage or {}).properties or {})["operator-name"] %>)
+                        <% end %>
+                    </td>
+
+                    <td>
+                        <table>
+                            <tr>
+                                <td><%:APN%></td>
+                                <td>
+                                    <%
+                                        local fieldsName = fieldsNameBase ..'apn/' ..simcardIndex
+
+                                        local valueA = luci.http.urldecode(luci.http.formvalue(fieldsName), true) or thisIsPost and ""
+                                        local valueB = simcardObject.config.apn or ""
+                                    %>
+                                    <input
+                                            type="text"
+                                            name="<%= fieldsName %>"
+                                            placeholder="<%= valueB %>"
+                                            style="<%= valueA and valueA ~= '' and valueA ~= valueB  and "background-color: #90f090" or ""%>"
+                                            value="<%= valueA or valueB %>"
+                                    />
+
+                                    <%
+                                        if valueA and valueA ~= valueB then
+                                            uci:set('kroks-dev-modem', simcardName, 'apn', valueA)
+                                            CHANGE = CHANGE + 1
+                                        end
+                                    %>
+                                </td>
+                            </tr>
+                        </table>
+
+                        <details>
+                            <summary><%: Details %></summary>
+
+                            <table style="width: 400px;">
+                                <tr align="left">
+                                    <th><%:Username%></th>
+                                    <td>
+                                        <%
+                                            local fieldsName = fieldsNameBase ..'username/' ..simcardIndex
+        
+                                            local valueA = luci.http.urldecode(luci.http.formvalue(fieldsName), true) or thisIsPost and ""
+                                            local valueB = simcardObject.config.username or ""
+                                        %>
+                                        <input
+                                                type="text"
+                                                name="<%= fieldsName %>"
+                                                placeholder="<%= valueB %>"
+                                                style="<%= valueA and valueA ~= '' and valueA ~= valueB  and "background-color: #90f090" or ""%>"
+                                                value="<%= valueA or valueB %>"
+                                        />
+        
+                                        <%
+                                            if valueA and valueA ~= valueB then
+                                                uci:set('kroks-dev-modem', simcardName, 'username', valueA or '')
+                                                CHANGE = CHANGE + 1
+                                            end
+                                        %>
+                                    </td>
+                                </tr>
+
+                                <tr align="left">
+                                    <th><%:Password%></th>
+                                    <td>
+                                        <%
+                                            local fieldsName = fieldsNameBase ..'password/' ..simcardIndex
+        
+                                            local valueA = luci.http.urldecode(luci.http.formvalue(fieldsName), true) or thisIsPost and ""
+                                            local valueB = simcardObject.config.password or ""
+                                        %>
+                                        <input
+                                                type="text"
+                                                name="<%= fieldsName %>"
+                                                placeholder="<%= valueB %>"
+                                                style="<%= valueA and valueA ~= '' and valueA ~= valueB  and "background-color: #90f090" or ""%>"
+                                                value="<%= valueA or valueB %>"
+                                        />
+        
+                                        <%
+                                            if valueA and valueA ~= valueB then
+                                                uci:set('kroks-dev-modem', simcardName, 'password', valueA)
+                                                CHANGE = CHANGE + 1
+                                            end
+                                        %>
+                                    </td>
+                                </tr>
+
+                                <tr align="left">
+                                    <th><%:Auth%></th>
+                                    <td>
+                                        <%
+                                            local fieldsName = fieldsNameBase ..'auth/' ..simcardIndex
+        
+                                            local valueA = luci.http.urldecode(luci.http.formvalue(fieldsName), true) or thisIsPost and ""
+                                            local valueB = simcardObject.config.auth or ""
+                                            local valueC = valueA or valueB
+                                        %>
+                                        <select
+                                                name="<%= fieldsName %>"
+                                                style="<%= valueA and valueA ~= '' and valueA ~= valueB  and "background-color: #90f090" or ""%>">
+                                            <option value="none" <%= valueC == "none" and "selected" or "" %>><%:None%></option>
+                                            <option value="pap" <%= valueC == "pap" and "selected" or "" %>>PAP</option>
+                                            <option value="chap" <%= valueC == "chap" and "selected" or "" %>>CHAP</option>
+                                            <option value="both" <%= valueC == "both" and "selected" or "" %>><%:Both%></option>
+                                        </select>
+        
+                                        <%
+                                            if valueA and valueA ~= valueB then
+                                                uci:set('kroks-dev-modem', simcardName, 'auth', valueA)
+                                                CHANGE = CHANGE + 1
+                                            end
+                                        %>
+                                    </td>
+                                </tr>
+
+                                <tr align="left">
+                                    <th><%:PIN code%></th>
+                                    <td>
+                                        <%
+                                            local fieldsName = fieldsNameBase ..'pincode/' ..simcardIndex
+                                            local valueA = luci.http.urldecode(luci.http.formvalue(fieldsName), true) or thisIsPost and ""
+                                            local valueB = simcardObject.config.pincode or ""
+                                        %>
+                                        <input
+                                                type="text"
+                                                name="<%= fieldsName %>"
+                                                placeholder="<%= valueB %>"
+                                                style="<%= valueA and valueA ~= '' and valueA ~= valueB  and "background-color: #90f090" or ""%>"
+                                                value="<%= valueA or valueB %>"
+                                        />
+        
+                                        <%
+                                            if valueA and valueA ~= valueB then
+                                                uci:set('kroks-dev-modem', simcardName, 'pincode', valueA)
+                                                CHANGE = CHANGE + 1
+                                            end
+                                        %>
+                                    </td>
+                                </tr>
+                            </table>
+                        </details>
+                    </td>
+                </tr><%
+            end
+        end
+        %>
+        </table>
+
+        <% if os.execute("ls /usr/share/kroks/simmaster.updated &>/dev/null") == 0 and os.execute("ls /usr/share/kroks/simslave.updated &>/dev/null") ~= 0 then %>
+            <h4 style="background-color: red;">
+                <%:System did not detect sim injector%>
+            </h4>
+        <% end %>
+
+        <%
+            if CHANGE > 0 then
+                uci:commit("kroks-dev-modem")
+                os.execute('/etc/init.d/kroks-ubus-dev-modem restart 1>/dev/null')
+
+                %><div class="alert-message" style="background-color: #90f090">
+                    <h4><%= luci.dispatcher.translate("Successfully change settings")%></h4>
+                    <script>
+                        window.location.href = '<%= luci.dispatcher.build_url("admin", "network", "modem", modemName, "configuration") %>';
+                    </script>
+                </div><%
+            end
+        %>
+    </div>
+<%
+end
+%>

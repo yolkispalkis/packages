@@ -1,0 +1,26 @@
+#!/bin/sh /etc/rc.common
+
+STOP=99
+stop() {
+	local m=1
+	while [ $m -lt 5 ]; do
+		local MPATH="/sys/class/gpio/modem${m}power/value"
+		[ -f "${MPATH}" ] || break
+		echo "0" > "${MPATH}"
+		local s=1
+		while [ $s -lt 10 ]; do
+			local SPATH="/sys/class/gpio/modem${m}sim${s}/value"
+			[ -f "${SPATH}" ] || break
+			echo "0" > "${SPATH}"
+			s=$(expr $s + 1)
+		done
+		s=1
+		while [ $s -lt 10 ]; do
+			local SPATH="/sys/class/gpio/modem${m}rsim${s}/value"
+			[ -f "${SPATH}" ] || break
+			echo "0" > "${SPATH}"
+			s=$(expr $s + 1)
+		done
+		m=$(expr $m + 1)
+	done
+}

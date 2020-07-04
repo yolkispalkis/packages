@@ -1,0 +1,150 @@
+<%
+    luci.template.render("header")
+%>
+
+<script type="text/javascript" src="<%=resource%>/cbi.js"></script>
+<script type="text/javascript">//<![CDATA[
+
+<%
+    local request = luci.http.formvalue()
+%>
+
+XHR.poll(5, '<%=luci.dispatcher.build_url("admin", "network", "modem", "control_panel")%>',{mode:"data"},
+        function(x, data)
+        {
+            switch (x.status){
+                case 404:
+                    window.location.replace('<%=luci.dispatcher.build_url("admin", "network", "modem")%>');
+                    break;
+            };
+});
+</script>
+
+<div class="cbi-section">
+    <h3><%:Method%>:</h3>
+
+    <table>
+        <tr>
+            <th width="30%" align="left">
+                <%:Name%>
+            </th>
+            <th width="50%" align="left">
+                <%:Description%>
+            </th>
+            <th width="20%" align="left">
+                <%:Action%>
+            </th>
+        </tr>
+
+        <% if os.execute("cat /etc/init.d/kroks-ubus-dev-modem-siminj 1>/dev/null") == 0 then %>
+        <tr>
+            <td>
+                <%:SIM Injector flasher%>
+
+                <% if request.simmin_force_flash then
+                    os.execute("rm /usr/share/kroks/simslave.updated 2>/dev/null")
+                    os.execute("rm /usr/share/kroks/simmaster.updated 2>/dev/null")
+                    os.execute("sleep 1")
+                    os.execute("/etc/init.d/kroks-ubus-dev-modem-siminj restart")
+                    os.execute("sleep 1")
+                %>
+                    : <b style="background-color: #90f090"><%:Successfully%></b>
+                <% end %>
+            </td>
+            <td>
+                <%:Forsed flash SIM Injector firmware%>
+            </td>
+            <td>
+                <form method="post">
+                    <input type="hidden" name="simmin_force_flash">
+                    <input type="submit" class="cbi-button cbi-button-save important" value="<%:Flash%>">
+                </form>
+            </td>
+        </tr>
+        <% end %>
+
+
+        <% if os.execute("cat /etc/init.d/kroks-ubus-dev-modem 1>/dev/null") == 0 then %>
+        <tr>
+            <td>
+                <%:Kroks modem restart%>
+
+                <% if request.dev_modem_reset then
+                    os.execute("/etc/init.d/kroks-ubus-dev-modem restart")
+                    os.execute("sleep 2")
+                %>
+                    : <b style="background-color: #90f090"><%:Successfully%></b>
+                <% end %>
+            </td>
+            <td>
+                <%:Restart ubus service for work with modem%>
+            </td>
+            <td>
+                <form method="post">
+                    <input type="hidden" name="dev_modem_reset">
+                    <input type="submit" class="cbi-button cbi-button-save important" value="<%:Restart%>">
+                </form>
+            </td>
+        </tr>
+        <% end %>
+
+        <% if os.execute("cat /etc/init.d/modemmanager 1>/dev/null") == 0 then %>
+        <tr>
+            <td>
+                <%:ModemManager restart%>
+
+                <% if request.modemmanager_restart then
+                    os.execute("/etc/init.d/modemmanager restart")
+                    os.execute("sleep 2")
+                %>
+                    : <b style="background-color: #90f090"><%:Successfully%></b>
+                <% end %>
+            </td>
+            <td>
+                <%:Restart backend for work with modem%>
+            </td>
+            <td>
+                <form method="post">
+                    <input type="hidden" name="modemmanager_restart">
+                    <input type="submit" class="cbi-button cbi-button-save important" value="<%:Restart%>">
+                </form>
+            </td>
+        </tr>
+        <% end %>
+
+        <% if os.execute("cat /etc/init.d/kroks-ubus-dev-modem 1>/dev/null") == 0 then %>
+        <tr>
+            <td>
+                <%:Modem restart%>
+
+                <% if request.device_modem_restart then
+                    for modemName, modemObject in pairs(mmcliStorage) do
+                        os.execute(string.format([[ubus call kroks.dev.modem.%s power "{'off' : true}" 1>/dev/null]], modemName))
+                    end
+
+                    os.execute("sleep 3")
+
+                    for modemName, modemObject in pairs(mmcliStorage) do
+                        os.execute(string.format([[ubus call kroks.dev.modem.%s power "{'on' : true}" 1>/dev/null]], modemName))
+                    end
+                %>
+                    : <b style="background-color: #90f090"><%:Successfully%></b>
+                <% end %>
+            </td>
+            <td>
+                <%:Hardware restart all modem%>
+            </td>
+            <td>
+                <form method="post">
+                    <input type="hidden" name="device_modem_restart">
+                    <input type="submit" class="cbi-button cbi-button-save important" value="<%:Restart%>">
+                </form>
+            </td>
+        </tr>
+        <% end %>
+    </table>
+</div>
+
+<%
+    luci.template.render("footer")
+%>

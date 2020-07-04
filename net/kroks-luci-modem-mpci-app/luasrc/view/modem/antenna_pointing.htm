@@ -1,0 +1,565 @@
+<%
+    function generator_signalGenericField(name, field, unit)
+        local html =
+[[
+<div style="display: inline-block; padding-inline-end: 15px;">
+    <table>
+        <tr align="left">
+            <th>
+                <span class="font middle">@NAME</span>
+                <br>
+                <span class="font small" style="color: ${ signalColor("@FIELD", accumulator.method.getMin("/signal/detail/@FIELD")) };">@MIN: ${accumulator.method.getMin("/signal/detail/@FIELD").toFixed(2)}</span>
+            </th>
+            <td align="center">
+                <span class="font large" title="@AVG: ${accumulator.method.getAvg("/signal/detail/@FIELD").toFixed(2)}" style="color: ${ signalColor("@FIELD", cursor.detail.@FIELD) };">
+                    ${cursor.detail.@FIELD}
+                </span>
+            </td>
+            <th>
+                <span class="font middle">@UNIT</span>
+                <br>
+                <span class="font small" style="color: ${ signalColor("@FIELD", accumulator.method.getMax("/signal/detail/@FIELD")) };">@MAX: ${accumulator.method.getMax("/signal/detail/@FIELD").toFixed(2)}</span>
+            </th>
+        </tr>
+    </table>
+</div>
+]];
+    html = html:gsub("@NAME", (name));
+    html = html:gsub("@FIELD", field);
+    html = html:gsub("@UNIT", translate(unit));
+
+    html = html:gsub("@MIN", translate("min"));
+    html = html:gsub("@AVG", translate("avg"));
+    html = html:gsub("@MAX", translate("max"));
+
+    print(html);
+end
+%>
+
+<!DOCTYPE html>
+<html lang="<%=luci.i18n.context.lang%>">
+    <head>
+        <meta charset="utf-8">
+        <title><%:Antenna pointing%></title>
+        <link rel="shortcut icon" href="<%=media%>/favicon.ico">
+        <script src="<%=resource%>/cbi.js"></script>
+        <script src="<%=resource%>/xhr.js"></script>
+
+        <script type="text/javascript" src="<%=resource%>/promis.min.js"></script>
+        <script type="text/javascript" src="<%=resource%>/luci.js"></script>
+        <script type="text/javascript">
+            L = new LuCI(<%= luci.http.write_json({
+                token          = token,
+                media          = media,
+                resource       = resource,
+                scriptname     = luci.http.getenv("SCRIPT_NAME"),
+                pathinfo       = luci.http.getenv("PATH_INFO"),
+                documentroot   = luci.http.getenv("DOCUMENT_ROOT"),
+                requestpath    = luci.dispatcher.context.requestpath,
+                dispatchpath   = luci.dispatcher.context.path,
+                pollinterval   = luci.config.main.pollinterval or 5,
+                ubuspath       = luci.config.main.ubuspath or '/ubus/',
+                sessionid      = luci.dispatcher.context.authsession,
+                nodespec       = luci.dispatcher.context.dispatched,
+                apply_rollback = math.max(applyconf and applyconf.rollback or 30, 30),
+                apply_holdoff  = math.max(applyconf and applyconf.holdoff or 4, 1),
+                apply_timeout  = math.max(applyconf and applyconf.timeout or 5, 1),
+                apply_display  = math.max(applyconf and applyconf.display or 1.5, 1),
+                rollback_token = rollback_token
+            }) %>); 
+        </script>
+        <style>
+            body {
+                background-color: black;
+                color: white;
+            }
+
+            .block {
+                display: inline-block;
+                margin: 5px;
+                padding-block-end: 10px;
+                vertical-align: top;
+            }
+            
+            .field {
+                
+            }
+
+            .field.name {
+                font-size: 3vh;
+            }
+
+            .field.content {
+                font-size: 3.5vh;
+            }
+
+            .font {
+                white-space: nowrap;
+            }
+
+            .font.large {
+                font-size: 6vh;
+            }
+            .font.middle {
+                font-size: 4vh;
+            }
+            .font.small {
+                font-size: 2vh;
+            }
+
+            @media screen and (min-width: 20vh) {
+                .nomobile {
+                    display: none;
+                }
+            }
+
+            @media screen and (min-width: 50vh) {
+                .nomobile {
+                    display: block;
+                }
+            }
+        </style>
+    </head>
+
+    <body>
+        <div class="block">
+            <div class="field">
+                <span class="field name" style="font-weight: bold;"><%:3GPP%>:</span>
+            </div>
+            <br>
+            <div class="block" id="/3gpp/"></div>
+        </div>
+
+        <hr>
+
+        <div class="block">
+            <div class="field">
+                <span class="field name" style="font-weight: bold;"><%:Signal%>:</span>
+                <progress id="/signal/quality" max="100" value="0" style="width: 25vh; height: 2vh"></progress>
+            </div>
+            <br>
+            <div class="block" id="/signal"></div>
+        </div>
+
+        <hr>
+
+        <div class="block">
+            <div class="field">
+                <span class="field name" style="font-weight: bold;"><%:Network%>:</span>
+                <span class="field name" id="/network/interface/device">--</span>
+            </div>
+            <br>
+            <div class="block" id="/network/interface"></div>
+            <div class="block" id="/network/device"></div>
+            <div class="block" id="/network/ping"></div>  
+        </div>
+
+        <hr>
+
+        <div class="block">
+            <div class="field">
+                <span class="field name" style="font-weight: bold;"><%:Active bands%>:</span>
+            </div>
+            <br>
+            <div class="block" id="/bands"></div>
+        </div>
+    </body>
+
+    <script>
+        function TimestampToString(timestamp) {
+            let hour = Math.floor(timestamp / 3600);
+            let minute = Math.floor(timestamp / 60) % 60;
+            let seconds = timestamp % 60;
+
+            return String.format("%02d:%02d:%02d", hour, minute, seconds);
+        }
+
+        function size_bytes2humanread(bytes) {
+            let value = bytes * 8;
+
+            if (value < 1024) {
+                return `${value.toFixed(2)} <%:bps%>`
+            }
+
+            value /= 1024;
+
+            if (value < 1024) {
+                return `${value.toFixed(2)} <%:kbps%>`
+            }
+
+            value /= 1024;
+
+            if (value < 1024) {
+                return `${value.toFixed(2)} <%:Mbps%>`
+            }
+
+            value /= 1024;
+
+            if (value < 1024) {
+                return `${value.toFixed(2)} <%:Gbps%>`
+            }
+        }
+
+        let accumulator = {
+            config: {
+                size: 60,
+            },
+            storage: {},
+            method: {
+                addValue: function(id, value) {
+                    value = Number(value) || 0;
+
+                    accumulator.storage[id] = accumulator.storage[id] || [];
+                    accumulator.storage[id].push(value);
+                 
+                    if (accumulator.storage[id].length > accumulator.config.size) {
+                        accumulator.storage[id].shift();
+                    }
+                },
+                getMax(id) {
+                    if (!accumulator.storage[id]) {
+                        return "--"
+                    }
+
+                    return Math.max(...accumulator.storage[id]);
+                },
+                getAvg(id) {
+                    if (!accumulator.storage[id]) {
+                        return "--"
+                    }
+
+                    return accumulator.storage[id].reduce((a,b) => a + b, 0) / accumulator.storage[id].length;
+                },
+                getMin(id) {
+                    if (!accumulator.storage[id]) {
+                        return "--"
+                    }
+
+                    return Math.min(...accumulator.storage[id]);
+                }
+            }
+        }
+
+        let speed = {
+            storage: {},
+            method: {
+                setValue: function(id, value) {
+                    value = Number(value) || 0;
+
+                    let output = 0;
+
+                    if (speed.storage[id]) {
+                        output = ((value - speed.storage[id].value) / ((new Date() - speed.storage[id].timestamp) / 1000));
+                    }
+
+                    speed.storage[id] = {
+                        value: value,
+                        timestamp: new Date(),
+                    };
+
+                    return output;
+                }
+            }
+        }
+
+
+        function handler3gpp(data) {
+            let cursor = data["3gpp"];
+
+            if (!cursor) {
+                return false;
+            }
+
+            document.getElementById("/3gpp/").innerHTML = `
+            <div class="field nomobile">
+                <span class="field name"><%:MCC%> / <%:MNC%>: </span>
+                <span class="field content">${cursor.mcc} / ${cursor.mnc}</span>
+            </div>
+            <div class="field nomobile">
+                <span class="field name"><%:Tech%>: </span>
+                <span class="field content">${cursor.tech.toUpperCase()}</span>
+            </div>
+            <div class="field">
+                <span class="field name">${cursor.tech == "lte" && "<%:TAC%>" || "<%:LAC%>"}: </span>
+                <span class="field content">${cursor.tech == "lte" && cursor.tac || cursor.lac} (hex)</span>
+            </div>
+            <div class="field">
+                <span class="field name"><%:Cell ID%>: </span>
+                <span class="field content">${cursor.cid} (hex)</span>
+            </div>
+            `;
+        }
+
+        XHR.poll(10, '<%=luci.dispatcher.build_url("admin", "network", "modem", tostring(modemName), "antenna_pointing")%>', { json: "true", ["3gpp"]: "" }, function(x, data) {
+            switch (x.status){
+                case 200:
+                    handler3gpp(data);
+                    break;
+            }
+        });
+
+
+        function handlerSignal(data) {
+            let cursor = data["signal"];
+
+            if (!cursor) {
+                return false;
+            }
+
+            if (cursor["quality"]) {
+                let progress = document.getElementById("/signal/quality");
+                progress.value = cursor["quality"];
+                progress.title = `${cursor["quality"]}%`;
+            }
+
+            let signal = document.getElementById("/signal");
+            signal.innerHTML = "";
+
+
+            function signalColor(type, value) {
+                value = +value;
+                if (type == "rssi") {
+                    if (value >= -70)
+                        return "green"
+                    if (value >= -85)
+                        return "yellow"
+                    if (value >= -100)
+                        return "orange"
+                    if (value >= -110)
+                        return "red"
+                    else
+                        return "maroon"
+                }
+                
+                if (type == "rsrq") {
+                    if (value >= -10)
+                        return "green"
+                    if (value >= -15)
+                        return "yellow"
+                    if (value >= -20)
+                        return "orange"
+                    else
+                        return "red"
+                }
+
+                if (type == "rsrp") {
+                    if (value >= -80)
+                        return "green"
+                    if (value >= -90)
+                        return "yellow"
+                    if (value >= -100)
+                        return "orange"
+                    else
+                        return "red"
+                }
+
+                if (type == "snr" || type == "sinr") {
+                    if (value >= 20)
+                        return "green"
+                    if (value >= 13)
+                        return "yellow"
+                    if (value >= 0)
+                        return "orange"
+                    else
+                        return "red"
+                }
+
+                if (type == "rscp") {
+                    if (value >= -84)
+                        return "green"
+                    if (value >= -94)
+                        return "yellow"
+                    if (value >= -105)
+                        return "orange"
+                    else
+                        return "red"
+                }
+
+                if (type == "ecio") {
+                    if (value >= -8)
+                        return "green"
+                    if (value >= -10)
+                        return "yellow"
+                    if (value >= -15)
+                        return "orange"
+                    else
+                        return "red"
+                }
+            }
+
+            let typeArray = Object.keys(cursor["detail"]);
+
+            typeArray.forEach(type => {
+                accumulator.method.addValue("/signal/detail/" + type, cursor["detail"][type]);
+            });
+
+            if (cursor["detail"].rssi)
+                signal.innerHTML += `<% generator_signalGenericField("RSSI", "rssi", "dBm") %>`;
+            if (cursor["detail"].rsrq)
+                signal.innerHTML += `<% generator_signalGenericField("RSRQ", "rsrq", "dB") %>`;
+            if (cursor["detail"].rsrp)
+                signal.innerHTML += `<% generator_signalGenericField("RSRP", "rsrp", "dBm") %>`;
+            if (cursor["detail"].snr)
+                signal.innerHTML += `<% generator_signalGenericField("SNR", "snr", "dB") %>`;    
+             
+            if (cursor["detail"].rscp)
+                signal.innerHTML += `<% generator_signalGenericField("RSCP", "rscp", "dBm") %>`;
+            if (cursor["detail"].ecio)
+                signal.innerHTML += `<% generator_signalGenericField("Ec/Io", "ecio", "dB") %>`;
+
+            if (cursor["detail"].sinr)
+                signal.innerHTML += `<% generator_signalGenericField("SINR", "sinr", "dB") %>`;   
+            if (cursor["detail"].io)
+                signal.innerHTML += `<% generator_signalGenericField("IO", "io", "??") %>`;  
+        }
+
+        XHR.poll(1, '<%=luci.dispatcher.build_url("admin", "network", "modem", tostring(modemName), "antenna_pointing")%>', { json: "true", ["signal"]: "" }, function(x, data) {
+            switch (x.status){
+                case 200:
+                    handlerSignal(data);
+                    break;
+            }
+        });
+
+
+        function handlerNetwork(data) {
+            let cursor = data["network"];
+
+            if (cursor["interface"]) {
+                document.getElementById("/network/interface/device").innerText= cursor["interface"].device;
+            
+                document.getElementById("/network/interface").innerHTML = `
+                <div class="block">
+                    <div class="field nomobile">
+                        <span class="field name"><%:Enabled%>: </span>
+                        <span class="field content">${TimestampToString(cursor["interface"]["uptime"])}</span>
+                    </div>
+                    <div class="field nomobile">
+                        <span class="field name"><%:IP%>: </span>
+                        <span class="field content">${cursor["interface"]["ipv4-address"]}/${cursor["interface"]["ipv4-mask"]}</span>
+                    </div>
+                </div
+                `;
+            } else {
+                document.getElementById("/network/interface/device").innerHTML = "--";
+                document.getElementById("/network/interface").innerHTML = "";
+            } 
+
+            if (cursor["device"]) {
+                document.getElementById("/network/device").innerHTML = `
+                <div class="block">
+                    <div class="field">
+                        <span class="field name"><%:Tx speed%>: </span>
+                        <span class="field content">${size_bytes2humanread(speed.method.setValue("tx", cursor["device"]["statistics"]["tx_bytes"]))}</span>
+                    </div>
+                    <div class="field">
+                        <span class="field name"><%:Rx speed%>: </span>
+                        <span class="field content">${size_bytes2humanread(speed.method.setValue("rx", cursor["device"]["statistics"]["rx_bytes"]))}</span>
+                    </div>
+                </div
+                `;
+            } else {
+                document.getElementById("/network/device").innerHTML = "";
+            } 
+        }
+
+        XHR.poll(1, '<%=luci.dispatcher.build_url("admin", "network", "modem", tostring(modemName), "antenna_pointing")%>', { json: "true", ["network"]: "", ["network_device"]: "" }, function(x, data) {
+            switch (x.status){
+                case 200:
+                    handlerNetwork(data);
+                    break;
+            }
+        });
+
+
+        function handlerNetworkPing(data) {
+            let cursor = data["network"];
+
+            if (cursor["ping"]) {
+                document.getElementById("/network/ping").innerHTML = `
+                <div class="block">
+                    <div class="field">
+                        <span class="field name"><%:Status%>: </span>
+                        <span class="field content" style="color: ${cursor["ping"]["status"] == 0 && "green" || "red"}">${cursor["ping"]["status"] == 0 && "<%:Online%>" || "<%:Offline%>"}</span>
+                    </div>`;
+
+                if (cursor["ping"]["reliability"] && cursor["ping"]["reliability"] > 0) {
+                    document.getElementById("/network/ping").innerHTML += `
+                    <div class="field">
+                        <span class="field name"><%:Reliability%>: </span>
+                        <span class="field content">${cursor["ping"]["reliability"]}%</span>
+                    </div>`;
+                }
+
+                if (cursor["ping"]["rtt"]) {
+                    document.getElementById("/network/ping").innerHTML += `
+                    <div class="field">
+                        <span class="field name"><%:RTT%>: </span>
+                        <span class="field content">${cursor["ping"]["rtt"]}ms</span>
+                    </div>`;
+                }
+
+                document.getElementById("/network/ping").innerHTML += '</div>';
+            }
+        }
+
+        XHR.poll(1, '<%=luci.dispatcher.build_url("admin", "network", "modem", tostring(modemName), "antenna_pointing")%>', { json: "true", ["network"]: "", ["network_ping"]: "" }, function(x, data) {
+            switch (x.status){
+                case 200:
+                    handlerNetworkPing(data);
+                    break;
+            }
+        });
+
+
+        function handlerBands(data) {
+            let cursor = data["bands"];
+
+            if (!cursor) {
+                return false;
+            }
+
+            document.getElementById("/bands").innerHTML = "";
+
+            for (let i = 0; i < cursor.length; i++) {
+                document.getElementById("/bands").innerHTML += `
+                <div class="block">
+                    <div class="field">
+                        <span class="field name" style="font-weight: bold;"><%:Name%>: </span>
+                        <span class="field content">${cursor[i]["band-alias"]} (${cursor[i]["band-name"]})</span>
+                    </div>
+                    <div class="field">
+                        <span class="field name"><%:Freq DL%>: </span>
+                        <span class="field content">${cursor[i]["freq-download"].toFixed(2)} <%:MHz%></span>
+                    </div>
+                    <div class="field">
+                        <span class="field name"><%:Freq UL%>: </span>
+                        <span class="field content">${cursor[i]["freq-upload"].toFixed(2)} <%:MHz%></span>
+                    </div>
+                    <div class="field">
+                        <span class="field name"><%:Bandwidth%>: </span>
+                        <span class="field content">${cursor[i]["bandwidth"].toFixed(2)} <%:MHz%></span>
+                    </div>
+                </div
+                `;
+            }
+        }
+
+        XHR.poll(10, '<%=luci.dispatcher.build_url("admin", "network", "modem", tostring(modemName), "antenna_pointing")%>', { json: "true", ["bands"]: "" }, function(x, data) {
+            switch (x.status){
+                case 200:
+                    handlerBands(data);
+                    break;
+            }
+        });
+
+
+        let data = JSON.parse('<% luci.http.write_json(antenna_pointing) %>');
+
+        handler3gpp(data);
+        handlerSignal(data);
+        handlerNetwork(data);
+        handlerBands(data);
+    </script>
+</html>
+
